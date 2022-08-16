@@ -14,16 +14,19 @@ import (
 	"time"
 
 	tlsC "github.com/Dreamacro/clash/component/tls"
-	"github.com/Dreamacro/clash/transport/hysteria/core"
-	"github.com/Dreamacro/clash/transport/hysteria/obfs"
-	"github.com/Dreamacro/clash/transport/hysteria/pmtud_fix"
-	"github.com/Dreamacro/clash/transport/hysteria/transport"
+
 	"github.com/lucas-clemente/quic-go"
+	"github.com/tobyxdd/hysteria/pkg/core"
+	"github.com/tobyxdd/hysteria/pkg/obfs"
+	"github.com/tobyxdd/hysteria/pkg/pmtud_fix"
+	"github.com/tobyxdd/hysteria/pkg/transport"
 
 	"github.com/Dreamacro/clash/component/dialer"
 	C "github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/log"
-	hyCongestion "github.com/Dreamacro/clash/transport/hysteria/congestion"
+
+	hyCongestion "github.com/tobyxdd/hysteria/pkg/congestion"
+
 	"github.com/lucas-clemente/quic-go/congestion"
 	M "github.com/sagernet/sing/common/metadata"
 )
@@ -49,13 +52,6 @@ type Hysteria struct {
 }
 
 func (h *Hysteria) DialContext(ctx context.Context, metadata *C.Metadata, opts ...dialer.Option) (C.Conn, error) {
-	// hdc := hyDialerWithContext{
-	// 	ctx: context.Background(),
-	// 	hyDialer: func() (net.PacketConn, error) {
-	// 		return dialer.ListenPacket(ctx, "udp", "", h.Base.DialOptions(opts...)...)
-	// 	},
-	// }
-
 	tcpConn, err := h.client.DialTCP(metadata.RemoteAddress())
 	if err != nil {
 		return nil, err
@@ -65,12 +61,6 @@ func (h *Hysteria) DialContext(ctx context.Context, metadata *C.Metadata, opts .
 }
 
 func (h *Hysteria) ListenPacketContext(ctx context.Context, metadata *C.Metadata, opts ...dialer.Option) (C.PacketConn, error) {
-	// hdc := hyDialerWithContext{
-	// 	ctx: context.Background(),
-	// 	hyDialer: func() (net.PacketConn, error) {
-	// 		return dialer.ListenPacket(ctx, "udp", "", h.Base.DialOptions(opts...)...)
-	// 	},
-	// }
 	udpConn, err := h.client.DialUDP()
 	if err != nil {
 		return nil, err
@@ -233,7 +223,7 @@ func stringToBps(s string) uint64 {
 		return 0
 	}
 
-	// when have not unit, use Mbps
+	// when have no unit, use Mbps
 	if v, err := strconv.Atoi(s); err == nil {
 		return stringToBps(fmt.Sprintf("%d Mbps", v))
 	}
@@ -287,15 +277,14 @@ func (c *hyPacketConn) WriteTo(p []byte, addr net.Addr) (n int, err error) {
 	return
 }
 
-type hyDialerWithContext struct {
-	hyDialer func() (net.PacketConn, error)
-	ctx      context.Context
+func (c *hyPacketConn) SetDeadline(time.Time) error {
+	return nil
 }
 
-func (h *hyDialerWithContext) ListenPacket() (net.PacketConn, error) {
-	return h.hyDialer()
+func (c *hyPacketConn) SetReadDeadline(time.Time) error {
+	return nil
 }
 
-func (h *hyDialerWithContext) Context() context.Context {
-	return h.ctx
+func (c *hyPacketConn) SetWriteDeadline(time.Time) error {
+	return nil
 }
