@@ -76,7 +76,7 @@ func (g *GEOIP) ShouldFindProcess() bool {
 }
 
 func NewGEOIP(country string, adapter string, noResolveIP bool) (*GEOIP, error) {
-	if !C.GeodataMode {
+	if !C.GeodataMode || strings.EqualFold(country, "LAN") {
 		geoip := &GEOIP{
 			Base:        &Base{},
 			country:     country,
