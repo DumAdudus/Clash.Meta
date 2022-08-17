@@ -43,7 +43,7 @@ func ServeDNSWithDefaultServer(msg *D.Msg) (*D.Msg, error) {
 
 func FlushCacheWithDefaultResolver() {
 	if r := resolver.DefaultResolver; r != nil {
-		r.(*Resolver).lruCache = cache.NewLRUCache(
+		r.(*Resolver).lruCache = cache.New(
 			cache.WithSize[string, *D.Msg](4096),
 			cache.WithStale[string, *D.Msg](true),
 		)

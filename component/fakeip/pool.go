@@ -192,7 +192,7 @@ func New(options Options) (*Pool, error) {
 			cache: cachefile.Cache(),
 		}
 	} else {
-		pool.store = newMemoryStore(options.Size)
+		pool.store = newMemoryStore(options.Size * 2)
 	}
 
 	pool.restoreState()

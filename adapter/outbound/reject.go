@@ -16,7 +16,7 @@ const (
 	rejectDelay      = time.Second * 30
 )
 
-var rejectCounter = cache.NewLRUCache(
+var rejectCounter = cache.New(
 	cache.WithAge[string, int](10),
 	cache.WithStale[string, int](false),
 	cache.WithSize[string, int](128))
