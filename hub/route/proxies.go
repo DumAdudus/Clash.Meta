@@ -11,16 +11,14 @@ import (
 	"github.com/Dreamacro/clash/adapter/outboundgroup"
 	"github.com/Dreamacro/clash/component/profile/cachefile"
 	C "github.com/Dreamacro/clash/constant"
-	"github.com/Dreamacro/clash/tunnel"
 	"github.com/Dreamacro/clash/constant/provider"
+	"github.com/Dreamacro/clash/tunnel"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 )
 
-var (
-	SwitchProxiesCallback func(sGroup string, sProxy string)
-)
+var SwitchProxiesCallback func(sGroup string, sProxy string)
 
 func proxyRouter() http.Handler {
 	r := chi.NewRouter()
@@ -48,11 +46,11 @@ func findProxyByName(next http.Handler) http.Handler {
 		name := r.Context().Value(CtxKeyProxyName).(string)
 		proxies := tunnel.Proxies()
 		proxy, exist := proxies[name]
-		
+
 		if !exist {
 			proxy, exist = findProxyInNonCompatibleProviderByName(name)
 		}
-		
+
 		if !exist {
 			render.Status(r, http.StatusNotFound)
 			render.JSON(w, r, ErrNotFound)

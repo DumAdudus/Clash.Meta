@@ -2,10 +2,11 @@ package proxy
 
 import (
 	"fmt"
-	"github.com/Dreamacro/clash/listener/inner"
 	"net"
 	"strconv"
 	"sync"
+
+	"github.com/Dreamacro/clash/listener/inner"
 
 	"github.com/Dreamacro/clash/adapter/inbound"
 	C "github.com/Dreamacro/clash/constant"

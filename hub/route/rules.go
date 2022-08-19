@@ -1,8 +1,9 @@
 package route
 
 import (
-	"github.com/Dreamacro/clash/constant"
 	"net/http"
+
+	"github.com/Dreamacro/clash/constant"
 
 	"github.com/Dreamacro/clash/tunnel"
 

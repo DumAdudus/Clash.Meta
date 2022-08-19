@@ -2,9 +2,10 @@ package logic
 
 import (
 	"fmt"
+	"strings"
+
 	C "github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/rules/common"
-	"strings"
 )
 
 type AND struct {
@@ -20,7 +21,8 @@ func (A *AND) ShouldFindProcess() bool {
 }
 
 func NewAND(payload string, adapter string,
-	parse func(tp, payload, target string, params []string) (parsed C.Rule, parseErr error)) (*AND, error) {
+	parse func(tp, payload, target string, params []string) (parsed C.Rule, parseErr error),
+) (*AND, error) {
 	and := &AND{Base: &common.Base{}, payload: payload, adapter: adapter}
 	rules, err := parseRuleByPayload(payload, parse)
 	if err != nil {

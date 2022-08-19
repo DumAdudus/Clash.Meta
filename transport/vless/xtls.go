@@ -2,8 +2,9 @@ package vless
 
 import (
 	"context"
-	tlsC "github.com/Dreamacro/clash/component/tls"
 	"net"
+
+	tlsC "github.com/Dreamacro/clash/component/tls"
 
 	C "github.com/Dreamacro/clash/constant"
 	xtls "github.com/xtls/go"

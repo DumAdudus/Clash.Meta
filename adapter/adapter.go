@@ -4,15 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/Dreamacro/clash/common/queue"
-	"github.com/Dreamacro/clash/component/dialer"
-	C "github.com/Dreamacro/clash/constant"
 	"net"
 	"net/http"
 	"net/netip"
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/Dreamacro/clash/common/queue"
+	"github.com/Dreamacro/clash/component/dialer"
+	C "github.com/Dreamacro/clash/constant"
 
 	"go.uber.org/atomic"
 )
@@ -161,7 +162,6 @@ func (p *Proxy) URLTest(ctx context.Context, url string) (t uint16, err error) {
 	defer client.CloseIdleConnections()
 
 	resp, err := client.Do(req)
-
 	if err != nil {
 		return
 	}

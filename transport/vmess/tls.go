@@ -3,8 +3,9 @@ package vmess
 import (
 	"context"
 	"crypto/tls"
-	tlsC "github.com/Dreamacro/clash/component/tls"
 	"net"
+
+	tlsC "github.com/Dreamacro/clash/component/tls"
 
 	C "github.com/Dreamacro/clash/constant"
 )

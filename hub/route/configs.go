@@ -1,10 +1,11 @@
 package route
 
 import (
-	"github.com/Dreamacro/clash/component/dialer"
 	"net/http"
 	"path/filepath"
 	"sync"
+
+	"github.com/Dreamacro/clash/component/dialer"
 
 	"github.com/Dreamacro/clash/component/resolver"
 	"github.com/Dreamacro/clash/config"

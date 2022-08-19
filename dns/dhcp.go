@@ -1,14 +1,16 @@
+//go:build disabled
 // +build disabled
 
 package dns
 
 import (
 	"context"
-	"go.uber.org/atomic"
 	"net"
 	"net/netip"
 	"sync"
 	"time"
+
+	"go.uber.org/atomic"
 
 	"github.com/Dreamacro/clash/component/dhcp"
 	"github.com/Dreamacro/clash/component/iface"

@@ -5,14 +5,15 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"github.com/Dreamacro/clash/component/dialer"
-	"github.com/Dreamacro/clash/component/resolver"
-	tlsC "github.com/Dreamacro/clash/component/tls"
-	"github.com/lucas-clemente/quic-go"
 	"net"
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/Dreamacro/clash/component/dialer"
+	"github.com/Dreamacro/clash/component/resolver"
+	tlsC "github.com/Dreamacro/clash/component/tls"
+	"github.com/lucas-clemente/quic-go"
 
 	"github.com/Dreamacro/clash/log"
 	D "github.com/miekg/dns"
@@ -153,7 +154,6 @@ func (dc *quicClient) openConnection(ctx context.Context) (quic.Connection, erro
 	)
 
 	host, port, err := net.SplitHostPort(dc.addr)
-
 	if err != nil {
 		return nil, err
 	}

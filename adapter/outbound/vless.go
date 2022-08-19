@@ -6,13 +6,14 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/Dreamacro/clash/common/convert"
-	tlsC "github.com/Dreamacro/clash/component/tls"
 	"io"
 	"net"
 	"net/http"
 	"strconv"
 	"sync"
+
+	"github.com/Dreamacro/clash/common/convert"
+	tlsC "github.com/Dreamacro/clash/component/tls"
 
 	"github.com/Dreamacro/clash/component/dialer"
 	"github.com/Dreamacro/clash/component/resolver"

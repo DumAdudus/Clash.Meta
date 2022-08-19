@@ -5,13 +5,14 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	tlsC "github.com/Dreamacro/clash/component/tls"
-	vmess "github.com/sagernet/sing-vmess"
 	"net"
 	"net/http"
 	"strconv"
 	"strings"
 	"sync"
+
+	tlsC "github.com/Dreamacro/clash/component/tls"
+	vmess "github.com/sagernet/sing-vmess"
 
 	"github.com/Dreamacro/clash/component/dialer"
 	"github.com/Dreamacro/clash/component/resolver"

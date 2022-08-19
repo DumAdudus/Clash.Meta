@@ -152,7 +152,6 @@ func (wpc *wrapPacketConn) LocalAddr() net.Addr {
 func dialContextExtra(ctx context.Context, adapterName string, network string, dstIP netip.Addr, port string, opts ...dialer.Option) (net.Conn, error) {
 	networkType := C.TCP
 	if network == "udp" {
-
 		networkType = C.UDP
 	}
 

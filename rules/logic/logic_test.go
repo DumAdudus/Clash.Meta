@@ -2,11 +2,12 @@ package logic
 
 import (
 	"fmt"
+	"testing"
+
 	"github.com/Dreamacro/clash/constant"
 	RC "github.com/Dreamacro/clash/rules/common"
 	RP "github.com/Dreamacro/clash/rules/provider"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func ParseRule(tp, payload, target string, params []string) (parsed constant.Rule, parseErr error) {

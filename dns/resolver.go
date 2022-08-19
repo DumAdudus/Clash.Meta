@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"go.uber.org/atomic"
 	"math/rand"
 	"net/netip"
 	"time"
+
+	"go.uber.org/atomic"
 
 	"github.com/Dreamacro/clash/common/cache"
 	"github.com/Dreamacro/clash/common/picker"

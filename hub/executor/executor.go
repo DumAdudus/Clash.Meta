@@ -2,12 +2,13 @@ package executor
 
 import (
 	"fmt"
-	"github.com/Dreamacro/clash/component/tls"
-	"github.com/Dreamacro/clash/listener/inner"
 	"net/netip"
 	"os"
-	"sync"
 	"runtime"
+	"sync"
+
+	"github.com/Dreamacro/clash/component/tls"
+	"github.com/Dreamacro/clash/listener/inner"
 
 	"github.com/Dreamacro/clash/adapter"
 	"github.com/Dreamacro/clash/adapter/outboundgroup"
@@ -228,7 +229,6 @@ func loadRuleProvider(ruleProviders map[string]provider.RuleProvider) {
 		go func() {
 			defer func() { <-ch; wg.Done() }()
 			loadProvider(ruleProvider)
-
 		}()
 	}
 

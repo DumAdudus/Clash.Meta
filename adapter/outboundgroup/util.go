@@ -2,9 +2,10 @@ package outboundgroup
 
 import (
 	"fmt"
-	C "github.com/Dreamacro/clash/constant"
 	"net"
 	"net/netip"
+
+	C "github.com/Dreamacro/clash/constant"
 )
 
 func addrToMetadata(rawAddress string) (addr *C.Metadata, err error) {

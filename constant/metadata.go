@@ -112,8 +112,8 @@ type Metadata struct {
 	Process     string     `json:"process"`
 	ProcessPath string     `json:"processPath"`
 	RemoteDst   string     `json:"remoteDestination"`
-	RawSrcAddr net.Addr `json:"-"`
-	RawDstAddr net.Addr `json:"-"`
+	RawSrcAddr  net.Addr   `json:"-"`
+	RawDstAddr  net.Addr   `json:"-"`
 }
 
 func (m *Metadata) RemoteAddress() string {

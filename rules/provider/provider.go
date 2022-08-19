@@ -2,17 +2,16 @@ package provider
 
 import (
 	"encoding/json"
+	"runtime"
+	"time"
+
 	"github.com/Dreamacro/clash/component/resource"
 	C "github.com/Dreamacro/clash/constant"
 	P "github.com/Dreamacro/clash/constant/provider"
 	"gopkg.in/yaml.v3"
-	"runtime"
-	"time"
 )
 
-var (
-	ruleProviders = map[string]P.RuleProvider{}
-)
+var ruleProviders = map[string]P.RuleProvider{}
 
 type ruleSetProvider struct {
 	*resource.Fetcher[any]
@@ -103,7 +102,8 @@ func (rp *ruleSetProvider) MarshalJSON() ([]byte, error) {
 }
 
 func NewRuleSetProvider(name string, behavior P.RuleType, interval time.Duration, vehicle P.Vehicle,
-	parse func(tp, payload, target string, params []string) (parsed C.Rule, parseErr error)) P.RuleProvider {
+	parse func(tp, payload, target string, params []string) (parsed C.Rule, parseErr error),
+) P.RuleProvider {
 	rp := &ruleSetProvider{
 		behavior: behavior,
 	}

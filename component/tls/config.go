@@ -7,13 +7,16 @@ import (
 	"crypto/x509"
 	"encoding/hex"
 	"fmt"
-	xtls "github.com/xtls/go"
 	"sync"
 	"time"
+
+	xtls "github.com/xtls/go"
 )
 
-var globalFingerprints [][32]byte
-var mutex sync.Mutex
+var (
+	globalFingerprints [][32]byte
+	mutex              sync.Mutex
+)
 
 func verifyPeerCertificateAndFingerprints(fingerprints [][32]byte, insecureSkipVerify bool) func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
 	return func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {

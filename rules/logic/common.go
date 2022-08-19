@@ -2,11 +2,12 @@ package logic
 
 import (
 	"fmt"
-	"github.com/Dreamacro/clash/common/collections"
-	C "github.com/Dreamacro/clash/constant"
 	"regexp"
 	"strings"
 	_ "unsafe"
+
+	"github.com/Dreamacro/clash/common/collections"
+	C "github.com/Dreamacro/clash/constant"
 )
 
 func parseRuleByPayload(payload string, parseRule func(tp, payload, target string, params []string) (parsed C.Rule, parseErr error)) ([]C.Rule, error) {

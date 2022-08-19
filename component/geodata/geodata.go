@@ -3,8 +3,9 @@ package geodata
 import (
 	"errors"
 	"fmt"
-	C "github.com/Dreamacro/clash/constant"
 	"strings"
+
+	C "github.com/Dreamacro/clash/constant"
 
 	"github.com/Dreamacro/clash/component/geodata/router"
 	"github.com/Dreamacro/clash/log"

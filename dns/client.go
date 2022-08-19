@@ -4,11 +4,12 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	tlsC "github.com/Dreamacro/clash/component/tls"
-	"go.uber.org/atomic"
 	"net"
 	"net/netip"
 	"strings"
+
+	tlsC "github.com/Dreamacro/clash/component/tls"
+	"go.uber.org/atomic"
 
 	"github.com/Dreamacro/clash/component/dialer"
 	"github.com/Dreamacro/clash/component/resolver"

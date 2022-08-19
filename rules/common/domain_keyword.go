@@ -1,8 +1,9 @@
 package common
 
 import (
-	"golang.org/x/net/idna"
 	"strings"
+
+	"golang.org/x/net/idna"
 
 	C "github.com/Dreamacro/clash/constant"
 )

@@ -5,16 +5,17 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"strconv"
+
 	"github.com/Dreamacro/clash/component/dialer"
 	"github.com/Dreamacro/clash/component/resolver"
 	tlsC "github.com/Dreamacro/clash/component/tls"
 	"github.com/lucas-clemente/quic-go"
 	"github.com/lucas-clemente/quic-go/http3"
 	D "github.com/miekg/dns"
-	"io"
-	"net"
-	"net/http"
-	"strconv"
 )
 
 const (

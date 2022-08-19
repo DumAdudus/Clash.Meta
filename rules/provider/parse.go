@@ -2,11 +2,12 @@ package provider
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/Dreamacro/clash/common/structure"
 	"github.com/Dreamacro/clash/component/resource"
 	C "github.com/Dreamacro/clash/constant"
 	P "github.com/Dreamacro/clash/constant/provider"
-	"time"
 )
 
 type ruleProviderSchema struct {
@@ -46,7 +47,7 @@ func ParseRuleProvider(name string, mapping map[string]interface{}, parse func(t
 	default:
 		return nil, fmt.Errorf("unsupported vehicle type: %s", schema.Type)
 	}
-	
+
 	interval := time.Duration(uint(schema.Interval)) * time.Second
 	return NewRuleSetProvider(name, behavior, interval, vehicle, parse), nil
 }

@@ -5,9 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/Dreamacro/clash/common/cache"
 	"net"
 	"time"
+
+	"github.com/Dreamacro/clash/common/cache"
 
 	"github.com/Dreamacro/clash/adapter/outbound"
 	"github.com/Dreamacro/clash/common/murmur3"

@@ -186,7 +186,7 @@ func NewHysteria(option HysteriaOption) (*Hysteria, error) {
 		log.Infoln("hysteria: Path MTU Discovery is not yet supported on this platform")
 	}
 
-	var auth = []byte(option.AuthString)
+	auth := []byte(option.AuthString)
 	var obfuscator obfs.Obfuscator
 	if len(option.Obfs) > 0 {
 		obfuscator = obfs.NewXPlusObfuscator([]byte(option.Obfs))

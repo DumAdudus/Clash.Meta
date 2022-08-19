@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/Dreamacro/clash/component/resolver"
 	"net"
 	"net/netip"
 	"sync"
+
+	"github.com/Dreamacro/clash/component/resolver"
 )
 
 var (

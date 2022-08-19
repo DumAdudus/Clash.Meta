@@ -3,8 +3,9 @@ package provider
 import (
 	"errors"
 	"fmt"
-	"github.com/Dreamacro/clash/component/resource"
 	"time"
+
+	"github.com/Dreamacro/clash/component/resource"
 
 	"github.com/Dreamacro/clash/common/structure"
 	C "github.com/Dreamacro/clash/constant"
@@ -26,7 +27,7 @@ type proxyProviderSchema struct {
 	URL         string            `provider:"url,omitempty"`
 	Interval    int               `provider:"interval,omitempty"`
 	Filter      string            `provider:"filter,omitempty"`
-	PrefixName      string              `provider:"prefix-name,omitempty"`
+	PrefixName  string            `provider:"prefix-name,omitempty"`
 	HealthCheck healthCheckSchema `provider:"health-check,omitempty"`
 }
 

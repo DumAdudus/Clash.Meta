@@ -3,12 +3,13 @@ package outboundgroup
 import (
 	"errors"
 	"fmt"
-	"github.com/dlclark/regexp2"
+
 	"github.com/Dreamacro/clash/adapter/outbound"
 	"github.com/Dreamacro/clash/adapter/provider"
 	"github.com/Dreamacro/clash/common/structure"
 	C "github.com/Dreamacro/clash/constant"
 	types "github.com/Dreamacro/clash/constant/provider"
+	"github.com/dlclark/regexp2"
 )
 
 var (
@@ -38,7 +39,7 @@ func ParseProxyGroup(config map[string]any, proxyMap map[string]C.Proxy, provide
 	groupOption := &GroupCommonOption{
 		Lazy: true,
 	}
-	
+
 	var (
 		filterRegx *regexp2.Regexp
 		err        error
@@ -47,7 +48,7 @@ func ParseProxyGroup(config map[string]any, proxyMap map[string]C.Proxy, provide
 	if err := decoder.Decode(config, groupOption); err != nil {
 		return nil, errFormat
 	}
-	
+
 	if groupOption.Filter != "" {
 		filterRegx, err = regexp2.Compile(groupOption.Filter, 0)
 		if err != nil {
@@ -156,7 +157,7 @@ func getProviders(mapping map[string]types.ProxyProvider, groupOption *GroupComm
 		list      = groupOption.Use
 		groupName = groupOption.Name
 	)
-	
+
 	for _, name := range list {
 		p, ok := mapping[name]
 		if !ok {
@@ -166,7 +167,7 @@ func getProviders(mapping map[string]types.ProxyProvider, groupOption *GroupComm
 		if p.VehicleType() == types.Compatible {
 			return nil, fmt.Errorf("proxy group %s can't contains in `use`", name)
 		}
-		
+
 		if filterRegx != nil {
 			var hc *provider.HealthCheck
 			if groupOption.Type == "select" || groupOption.Type == "relay" {

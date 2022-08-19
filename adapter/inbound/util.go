@@ -1,12 +1,13 @@
 package inbound
 
 import (
-	"github.com/Dreamacro/clash/common/nnip"
 	"net"
 	"net/http"
 	"net/netip"
 	"strconv"
 	"strings"
+
+	"github.com/Dreamacro/clash/common/nnip"
 
 	C "github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/transport/socks5"

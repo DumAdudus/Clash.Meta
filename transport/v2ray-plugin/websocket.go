@@ -2,9 +2,10 @@ package obfs
 
 import (
 	"crypto/tls"
-	tlsC "github.com/Dreamacro/clash/component/tls"
 	"net"
 	"net/http"
+
+	tlsC "github.com/Dreamacro/clash/component/tls"
 
 	"github.com/Dreamacro/clash/transport/vmess"
 )

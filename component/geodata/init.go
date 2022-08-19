@@ -2,12 +2,13 @@ package geodata
 
 import (
 	"fmt"
-	C "github.com/Dreamacro/clash/constant"
-	"github.com/Dreamacro/clash/log"
 	"io"
 	"net/http"
 	"os"
+
 	"github.com/Dreamacro/clash/common/convert"
+	C "github.com/Dreamacro/clash/constant"
+	"github.com/Dreamacro/clash/log"
 )
 
 var initFlag bool

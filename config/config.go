@@ -4,7 +4,6 @@ import (
 	"container/list"
 	"errors"
 	"fmt"
-	"github.com/Dreamacro/clash/constant/sniffer"
 	"net"
 	"net/netip"
 	"net/url"
@@ -13,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/Dreamacro/clash/constant/sniffer"
 
 	"github.com/Dreamacro/clash/common/utils"
 	R "github.com/Dreamacro/clash/rules"
@@ -305,7 +306,7 @@ func UnmarshalRawConfig(buf []byte) (*RawConfig, error) {
 
 func ParseRawConfig(rawCfg *RawConfig) (*Config, error) {
 	config := &Config{}
-	log.Infoln("Start initial configuration in progress") //Segment finished in xxm
+	log.Infoln("Start initial configuration in progress") // Segment finished in xxm
 	startTime := time.Now()
 	config.Experimental = &rawCfg.Experimental
 	config.Profile = &rawCfg.Profile
@@ -352,7 +353,7 @@ func ParseRawConfig(rawCfg *RawConfig) (*Config, error) {
 	}
 
 	elapsedTime := time.Since(startTime) / time.Millisecond                     // duration in ms
-	log.Infoln("Initial configuration complete, total time: %dms", elapsedTime) //Segment finished in xxm
+	log.Infoln("Initial configuration complete, total time: %dms", elapsedTime) // Segment finished in xxm
 	return config, nil
 }
 

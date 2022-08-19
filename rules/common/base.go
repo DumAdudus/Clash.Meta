@@ -10,8 +10,7 @@ var (
 	noResolve  = "no-resolve"
 )
 
-type Base struct {
-}
+type Base struct{}
 
 func (b *Base) ShouldFindProcess() bool {
 	return false
