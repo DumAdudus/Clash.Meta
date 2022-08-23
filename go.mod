@@ -3,13 +3,14 @@ module github.com/Dreamacro/clash
 go 1.19
 
 require (
+	github.com/HyNetwork/hysteria v1.2.0
 	github.com/dlclark/regexp2 v1.7.0
 	github.com/go-chi/chi/v5 v5.0.7
 	github.com/go-chi/cors v1.2.1
 	github.com/go-chi/render v1.0.2
 	github.com/gofrs/uuid v4.2.0+incompatible
 	github.com/gorilla/websocket v1.5.0
-	github.com/insomniacslk/dhcp v0.0.0-20220818135946-2a691a334f6a
+	github.com/insomniacslk/dhcp v0.0.0-20220822114210-de18a9d48e84
 	github.com/lucas-clemente/quic-go v0.28.1
 	github.com/miekg/dns v1.1.50
 	github.com/oschwald/geoip2-golang v1.8.0
@@ -18,23 +19,22 @@ require (
 	github.com/sagernet/sing-vmess v0.0.0-20220801112355-e1de36a3c90e
 	github.com/sirupsen/logrus v1.9.0
 	github.com/stretchr/testify v1.8.0
-	github.com/tobyxdd/hysteria v1.2.0
 	github.com/xtls/go v0.0.0-20210920065950-d4af136d3672
 	go.etcd.io/bbolt v1.3.6
 	go.uber.org/atomic v1.10.0
 	go.uber.org/automaxprocs v1.5.1
-	golang.org/x/crypto v0.0.0-20220817201139-bc19a97f63c8
-	golang.org/x/exp v0.0.0-20220722155223-a9213eeb770e
-	golang.org/x/net v0.0.0-20220812174116-3211cb980234
+	golang.org/x/crypto v0.0.0-20220824171710-5757bc0c5503
+	golang.org/x/exp v0.0.0-20220823124025-807a23277127
+	golang.org/x/net v0.0.0-20220822230855-b0a4917ee28c
 	golang.org/x/sync v0.0.0-20220819030929-7fc1605a5dde
-	golang.org/x/sys v0.0.0-20220818161305-2296e01440c6
+	golang.org/x/sys v0.0.0-20220823224334-20c2bfdbfe24
 	google.golang.org/protobuf v1.28.1
 	gopkg.in/yaml.v3 v3.0.1
 )
 
-replace github.com/lucas-clemente/quic-go => github.com/tobyxdd/quic-go v0.28.2-0.20220806194731-5be744e08984
+replace github.com/lucas-clemente/quic-go => github.com/HyNetwork/quic-go v0.28.2-0.20220806194731-5be744e08984
 
-replace github.com/tobyxdd/hysteria => github.com/DumAdudus/hysteria v0.0.0-20220818025549-e6445cfbfe07
+replace github.com/HyNetwork/hysteria => github.com/DumAdudus/hysteria v0.0.0-20220825025005-b52709c91117
 
 require (
 	github.com/ajg/form v1.5.1 // indirect

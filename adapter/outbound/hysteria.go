@@ -15,17 +15,17 @@ import (
 
 	tlsC "github.com/Dreamacro/clash/component/tls"
 
+	"github.com/HyNetwork/hysteria/pkg/core"
+	"github.com/HyNetwork/hysteria/pkg/obfs"
+	"github.com/HyNetwork/hysteria/pkg/pmtud_fix"
+	"github.com/HyNetwork/hysteria/pkg/transport"
 	"github.com/lucas-clemente/quic-go"
-	"github.com/tobyxdd/hysteria/pkg/core"
-	"github.com/tobyxdd/hysteria/pkg/obfs"
-	"github.com/tobyxdd/hysteria/pkg/pmtud_fix"
-	"github.com/tobyxdd/hysteria/pkg/transport"
 
 	"github.com/Dreamacro/clash/component/dialer"
 	C "github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/log"
 
-	hyCongestion "github.com/tobyxdd/hysteria/pkg/congestion"
+	hyCongestion "github.com/HyNetwork/hysteria/pkg/congestion"
 
 	"github.com/lucas-clemente/quic-go/congestion"
 	M "github.com/sagernet/sing/common/metadata"
