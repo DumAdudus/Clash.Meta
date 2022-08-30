@@ -13,22 +13,15 @@ import (
 	"strconv"
 	"time"
 
-	tlsC "github.com/Dreamacro/clash/component/tls"
-
-	"github.com/HyNetwork/hysteria/pkg/core"
-	"github.com/HyNetwork/hysteria/pkg/obfs"
-	"github.com/HyNetwork/hysteria/pkg/pmtud_fix"
-	"github.com/HyNetwork/hysteria/pkg/transport"
-	"github.com/lucas-clemente/quic-go"
-
 	"github.com/Dreamacro/clash/component/dialer"
+	tlsC "github.com/Dreamacro/clash/component/tls"
 	C "github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/log"
+	"github.com/Dreamacro/clash/transport/hysteria"
 
-	hyCongestion "github.com/HyNetwork/hysteria/pkg/congestion"
-
-	"github.com/lucas-clemente/quic-go/congestion"
-	M "github.com/sagernet/sing/common/metadata"
+	"github.com/lucas-clemente/quic-go"
+	"github.com/tobyxdd/hysteria/pkg/obfs"
+	"github.com/tobyxdd/hysteria/pkg/pmtud_fix"
 )
 
 const (
@@ -48,11 +41,19 @@ var rateStringRegexp = regexp.MustCompile(`^(\d+)\s*([KMGT]?)([Bb])ps$`)
 type Hysteria struct {
 	*Base
 
-	client *core.Client
+	client *hysteria.Client
+}
+
+func (h *Hysteria) baseConnSetup(ctx context.Context, metadata *C.Metadata, opts ...dialer.Option) error {
+	pktConn, _ := dialer.ListenPacket(ctx, "udp", "", h.Base.DialOptions(opts...)...)
+	udpconn, _ := pktConn.(*net.UDPConn)
+	h.client.UDPSetup(ctx, udpconn)
+	return nil
 }
 
 func (h *Hysteria) DialContext(ctx context.Context, metadata *C.Metadata, opts ...dialer.Option) (C.Conn, error) {
-	tcpConn, err := h.client.DialTCP(metadata.RemoteAddress())
+	h.baseConnSetup(ctx, metadata, opts...)
+	tcpConn, err := h.client.DialTCP(ctx, metadata.RemoteAddress())
 	if err != nil {
 		return nil, err
 	}
@@ -61,11 +62,12 @@ func (h *Hysteria) DialContext(ctx context.Context, metadata *C.Metadata, opts .
 }
 
 func (h *Hysteria) ListenPacketContext(ctx context.Context, metadata *C.Metadata, opts ...dialer.Option) (C.PacketConn, error) {
+	h.baseConnSetup(ctx, metadata, opts...)
 	udpConn, err := h.client.DialUDP()
 	if err != nil {
 		return nil, err
 	}
-	return newPacketConn(&hyPacketConn{udpConn}, h), nil
+	return newPacketConn(udpConn, h), nil
 }
 
 type HysteriaOption struct {
@@ -90,13 +92,12 @@ type HysteriaOption struct {
 }
 
 func (c *HysteriaOption) Speed() (uint64, uint64, error) {
-	var up, down uint64
-	up = stringToBps(c.Up)
+	up := stringToBps(c.Up)
 	if up == 0 {
 		return 0, 0, fmt.Errorf("invaild upload speed: %s", c.Up)
 	}
 
-	down = stringToBps(c.Down)
+	down := stringToBps(c.Down)
 	if down == 0 {
 		return 0, 0, fmt.Errorf("invaild download speed: %s", c.Down)
 	}
@@ -105,12 +106,6 @@ func (c *HysteriaOption) Speed() (uint64, uint64, error) {
 }
 
 func NewHysteria(option HysteriaOption) (*Hysteria, error) {
-	clientTransport := &transport.ClientTransport{
-		Dialer: &net.Dialer{
-			Timeout: 8 * time.Second,
-		},
-	}
-
 	addr := net.JoinHostPort(option.Server, strconv.Itoa(option.Port))
 	serverName := option.Server
 	if option.SNI != "" {
@@ -197,10 +192,8 @@ func NewHysteria(option HysteriaOption) (*Hysteria, error) {
 		return nil, err
 	}
 
-	client, err := core.NewClient(
-		addr, option.Protocol, auth, tlsConfig, quicConfig, clientTransport, up, down, func(refBPS uint64) congestion.CongestionControl {
-			return hyCongestion.NewBrutalSender(congestion.ByteCount(refBPS))
-		}, obfuscator,
+	client, err := hysteria.NewClient(
+		addr, option.Protocol, auth, tlsConfig, quicConfig, up, down, obfuscator,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("hysteria %s create error: %w", addr, err)
@@ -252,39 +245,4 @@ func stringToBps(s string) uint64 {
 		n = n >> 3
 	}
 	return n
-}
-
-type hyPacketConn struct {
-	core.UDPConn
-}
-
-func (c *hyPacketConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
-	b, addrStr, err := c.UDPConn.ReadFrom()
-	if err != nil {
-		return
-	}
-	n = copy(p, b)
-	addr = M.ParseSocksaddr(addrStr).UDPAddr()
-	return
-}
-
-func (c *hyPacketConn) WriteTo(p []byte, addr net.Addr) (n int, err error) {
-	err = c.UDPConn.WriteTo(p, M.SocksaddrFromNet(addr).String())
-	if err != nil {
-		return
-	}
-	n = len(p)
-	return
-}
-
-func (c *hyPacketConn) SetDeadline(time.Time) error {
-	return nil
-}
-
-func (c *hyPacketConn) SetReadDeadline(time.Time) error {
-	return nil
-}
-
-func (c *hyPacketConn) SetWriteDeadline(time.Time) error {
-	return nil
 }
