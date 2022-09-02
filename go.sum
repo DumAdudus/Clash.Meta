@@ -8,6 +8,8 @@ dmitri.shuralyov.com/service/change v0.0.0-20181023043359-a85b471d5412/go.mod h1
 dmitri.shuralyov.com/state v0.0.0-20180228185332-28bcc343414c/go.mod h1:0PRwlb0D6DFvNNtx+9ybjezNCa8XF0xaYcETyp6rHWU=
 git.apache.org/thrift.git v0.0.0-20180902110319-2566ecd5d999/go.mod h1:fPE2ZNJGynbRyZ4dJvy6G277gSllfV2HJqblrnkyeyg=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
+github.com/DumAdudus/hysteria v0.0.0-20220902030938-f22705be2c71 h1:oqjLeja3bcUI1ymmXpjmwkfMJtym5oBt/QmoSAbtF98=
+github.com/DumAdudus/hysteria v0.0.0-20220902030938-f22705be2c71/go.mod h1:F3pAU/oxEiB3oNVYjJpamt/NQnQnkgNIx6+yk6wqmPw=
 github.com/HyNetwork/quic-go v0.28.2-0.20220806194731-5be744e08984 h1:t4+TR7V6zsIbMlnZ089Bf6msyS+irQIE1vFTrsjv3O4=
 github.com/HyNetwork/quic-go v0.28.2-0.20220806194731-5be744e08984/go.mod h1:oGz5DKK41cJt5+773+BSO9BXDsREY4HLf7+0odGAPO0=
 github.com/ajg/form v1.5.1 h1:t9c7v8JUKu/XxOGBU0yjNpaMloxGEJhUkqFRq0ibGeU=
@@ -209,8 +211,6 @@ github.com/stretchr/testify v1.7.1/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/
 github.com/stretchr/testify v1.8.0 h1:pSgiaMZlXftHpm5L7V1+rVB+AZJydKsMxsQBIJw4PKk=
 github.com/stretchr/testify v1.8.0/go.mod h1:yNjHg4UonilssWZ8iaSj1OCr/vHnekPRkoO+kdMU+MU=
 github.com/tarm/serial v0.0.0-20180830185346-98f6abe2eb07/go.mod h1:kDXzergiv9cbyO7IOYJZWg1U88JhDg3PB6klq9Hg2pA=
-github.com/tobyxdd/hysteria v1.2.0 h1:OcV31i1cX+f0qpsTa/S1AuYXHF7KXu6OXaeP9hjJ9ac=
-github.com/tobyxdd/hysteria v1.2.0/go.mod h1:Bl5WaawveCtUhZoCVqhtD4GBGSrqxN1R+RLSbl756gU=
 github.com/u-root/uio v0.0.0-20210528114334-82958018845c/go.mod h1:LpEX5FO/cB+WF4TYGY1V5qktpaZLkKkSegbr0V4eYXA=
 github.com/u-root/uio v0.0.0-20220204230159-dac05f7d2cb4 h1:hl6sK6aFgTLISijk6xIzeqnPzQcsLqqvL6vEfTPinME=
 github.com/u-root/uio v0.0.0-20220204230159-dac05f7d2cb4/go.mod h1:LpEX5FO/cB+WF4TYGY1V5qktpaZLkKkSegbr0V4eYXA=

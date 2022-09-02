@@ -3,6 +3,7 @@ module github.com/Dreamacro/clash
 go 1.19
 
 require (
+	github.com/HyNetwork/hysteria v1.2.0
 	github.com/dlclark/regexp2 v1.7.0
 	github.com/go-chi/chi/v5 v5.0.7
 	github.com/go-chi/cors v1.2.1
@@ -19,7 +20,6 @@ require (
 	github.com/sagernet/sing-vmess v0.0.0-20220801112355-e1de36a3c90e
 	github.com/sirupsen/logrus v1.9.0
 	github.com/stretchr/testify v1.8.0
-	github.com/tobyxdd/hysteria v1.2.0
 	github.com/xtls/go v0.0.0-20210920065950-d4af136d3672
 	go.etcd.io/bbolt v1.3.6
 	go.uber.org/atomic v1.10.0
@@ -34,6 +34,8 @@ require (
 )
 
 replace github.com/lucas-clemente/quic-go => github.com/HyNetwork/quic-go v0.28.2-0.20220806194731-5be744e08984
+
+replace github.com/HyNetwork/hysteria => github.com/DumAdudus/hysteria v0.0.0-20220902030938-f22705be2c71
 
 require (
 	github.com/ajg/form v1.5.1 // indirect

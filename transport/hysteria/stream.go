@@ -1,3 +1,6 @@
+// Picked from: https://github.com/HyNetwork/hysteria
+// License: MIT
+
 package hysteria
 
 import (

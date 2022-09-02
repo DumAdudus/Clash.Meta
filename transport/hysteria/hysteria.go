@@ -1,3 +1,6 @@
+// Modified from: https://github.com/HyNetwork/hysteria
+// License: MIT
+
 package hysteria
 
 import (
@@ -9,15 +12,15 @@ import (
 	"net"
 	"sync"
 
+	hycongestion "github.com/HyNetwork/hysteria/pkg/congestion"
+	"github.com/HyNetwork/hysteria/pkg/conns/udp"
+	"github.com/HyNetwork/hysteria/pkg/conns/wechat"
+	"github.com/HyNetwork/hysteria/pkg/obfs"
+	"github.com/HyNetwork/hysteria/pkg/pmtud_fix"
+	"github.com/HyNetwork/hysteria/pkg/utils"
 	"github.com/lucas-clemente/quic-go"
 	"github.com/lucas-clemente/quic-go/congestion"
 	"github.com/lunixbochs/struc"
-	hycongestion "github.com/tobyxdd/hysteria/pkg/congestion"
-	"github.com/tobyxdd/hysteria/pkg/conns/udp"
-	"github.com/tobyxdd/hysteria/pkg/conns/wechat"
-	"github.com/tobyxdd/hysteria/pkg/obfs"
-	"github.com/tobyxdd/hysteria/pkg/pmtud_fix"
-	"github.com/tobyxdd/hysteria/pkg/utils"
 )
 
 type CongestionFactory func(refBPS uint64) congestion.CongestionControl
@@ -304,9 +307,7 @@ func (c *Client) quicPacketConn() (net.PacketConn, error) {
 			pktConn = udp.NewObfsUDPConn(c.udpconn, c.obfuscator)
 		}
 	} else if c.protocol == "wechat-video" {
-		if c.obfuscator != nil {
-			pktConn = wechat.NewObfsWeChatUDPConn(c.udpconn, c.obfuscator)
-		}
+		pktConn = wechat.NewObfsWeChatUDPConn(c.udpconn, c.obfuscator)
 	} else {
 		return nil, fmt.Errorf("unsupported protocol: %s", c.protocol)
 	}

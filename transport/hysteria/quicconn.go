@@ -1,3 +1,6 @@
+// Modified from: https://github.com/HyNetwork/hysteria
+// License: MIT
+
 package hysteria
 
 import (
@@ -6,9 +9,9 @@ import (
 	"net"
 	"time"
 
+	"github.com/HyNetwork/hysteria/pkg/utils"
 	"github.com/lucas-clemente/quic-go"
 	"github.com/lunixbochs/struc"
-	"github.com/tobyxdd/hysteria/pkg/utils"
 )
 
 var (
@@ -138,14 +141,14 @@ func (c *quicPktConn) LocalAddr() net.Addr {
 	return c.Session.LocalAddr()
 }
 
-func (c *quicPktConn) SetDeadline(time.Time) error {
-	return nil
+func (c *quicPktConn) SetDeadline(t time.Time) error {
+	return c.Stream.SetDeadline(t)
 }
 
-func (c *quicPktConn) SetReadDeadline(time.Time) error {
-	return nil
+func (c *quicPktConn) SetReadDeadline(t time.Time) error {
+	return c.Stream.SetReadDeadline(t)
 }
 
-func (c *quicPktConn) SetWriteDeadline(time.Time) error {
-	return nil
+func (c *quicPktConn) SetWriteDeadline(t time.Time) error {
+	return c.Stream.SetWriteDeadline(t)
 }
