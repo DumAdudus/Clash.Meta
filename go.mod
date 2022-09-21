@@ -15,9 +15,9 @@ require (
 	github.com/lunixbochs/struc v0.0.0-20200707160740-784aaebc1d40
 	github.com/miekg/dns v1.1.50
 	github.com/oschwald/geoip2-golang v1.8.0
-	github.com/sagernet/sing v0.0.0-20220916071326-834794b006ea
+	github.com/sagernet/sing v0.0.0-20220921101604-86d7d510231f
 	github.com/sagernet/sing-shadowsocks v0.0.0-20220819002358-7461bb09a8f6
-	github.com/sagernet/sing-vmess v0.0.0-20220917033734-9b634758039d
+	github.com/sagernet/sing-vmess v0.0.0-20220921104047-5231f5f964db
 	github.com/sirupsen/logrus v1.9.0
 	github.com/stretchr/testify v1.8.0
 	github.com/xtls/go v0.0.0-20220914232946-0441cf4cf837
