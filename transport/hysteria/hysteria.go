@@ -12,38 +12,26 @@ import (
 	"net"
 	"sync"
 
-	hycongestion "github.com/HyNetwork/hysteria/pkg/congestion"
-	"github.com/HyNetwork/hysteria/pkg/conns/udp"
-	"github.com/HyNetwork/hysteria/pkg/conns/wechat"
-	"github.com/HyNetwork/hysteria/pkg/obfs"
-	"github.com/HyNetwork/hysteria/pkg/pmtud_fix"
+	"github.com/HyNetwork/hysteria/pkg/congestion"
+	"github.com/HyNetwork/hysteria/pkg/pmtud"
+	"github.com/HyNetwork/hysteria/pkg/transport/pktconns/obfs"
+	"github.com/HyNetwork/hysteria/pkg/transport/pktconns/udp"
+	"github.com/HyNetwork/hysteria/pkg/transport/pktconns/wechat"
 	"github.com/HyNetwork/hysteria/pkg/utils"
 	"github.com/lucas-clemente/quic-go"
-	"github.com/lucas-clemente/quic-go/congestion"
 	"github.com/lunixbochs/struc"
 )
 
-type CongestionFactory func(refBPS uint64) congestion.CongestionControl
-
-var (
-	ErrClosed = errors.New("closed")
-
-	ccBrutal = func(refBPS uint64) congestion.CongestionControl {
-		return hycongestion.NewBrutalSender(congestion.ByteCount(refBPS))
-	}
-
-	defaultCongestionControl = ccBrutal
-)
+var ErrClosed = errors.New("closed")
 
 type Client struct {
-	context           context.Context
-	udpconn           *net.UDPConn
-	serverAddr        string
-	protocol          string
-	sendBPS, recvBPS  uint64
-	auth              []byte
-	congestionFactory CongestionFactory
-	obfuscator        obfs.Obfuscator
+	context          context.Context
+	udpconn          *net.UDPConn
+	serverAddr       string
+	protocol         string
+	sendBPS, recvBPS uint64
+	auth             []byte
+	obfuscator       obfs.Obfuscator
 
 	tlsConfig  *tls.Config
 	quicConfig *quic.Config
@@ -60,17 +48,16 @@ type Client struct {
 func NewClient(serverAddr string, protocol string, auth []byte, tlsConfig *tls.Config, quicConfig *quic.Config,
 	sendBPS uint64, recvBPS uint64, obfuscator obfs.Obfuscator,
 ) (*Client, error) {
-	quicConfig.DisablePathMTUDiscovery = quicConfig.DisablePathMTUDiscovery || pmtud_fix.DisablePathMTUDiscovery
+	quicConfig.DisablePathMTUDiscovery = quicConfig.DisablePathMTUDiscovery || pmtud.DisablePathMTUDiscovery
 	c := &Client{
-		serverAddr:        serverAddr,
-		protocol:          protocol,
-		sendBPS:           sendBPS,
-		recvBPS:           recvBPS,
-		auth:              auth,
-		congestionFactory: defaultCongestionControl,
-		obfuscator:        obfuscator,
-		tlsConfig:         tlsConfig,
-		quicConfig:        quicConfig,
+		serverAddr: serverAddr,
+		protocol:   protocol,
+		sendBPS:    sendBPS,
+		recvBPS:    recvBPS,
+		auth:       auth,
+		obfuscator: obfuscator,
+		tlsConfig:  tlsConfig,
+		quicConfig: quicConfig,
 	}
 
 	return c, nil
@@ -127,8 +114,8 @@ func (c *Client) handleControlStream(qs quic.Connection, stream quic.Stream) (bo
 		return false, "", err
 	}
 	// Set the congestion accordingly
-	if sh.OK && c.congestionFactory != nil {
-		qs.SetCongestionControl(c.congestionFactory(sh.Rate.RecvBPS))
+	if sh.OK {
+		qs.SetCongestionControl(congestion.NewBrutalSender(sh.Rate.RecvBPS))
 	}
 	return sh.OK, sh.Message, nil
 }

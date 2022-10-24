@@ -68,12 +68,3 @@ func (m udpMessage) HeaderSize() int {
 func (m udpMessage) Size() int {
 	return m.HeaderSize() + len(m.Data)
 }
-
-type udpMessageV2 struct {
-	SessionID uint32
-	HostLen   uint16 `struc:"sizeof=Host"`
-	Host      string
-	Port      uint16
-	DataLen   uint16 `struc:"sizeof=Data"`
-	Data      []byte
-}

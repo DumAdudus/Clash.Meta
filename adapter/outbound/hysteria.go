@@ -19,8 +19,8 @@ import (
 	"github.com/Dreamacro/clash/log"
 	"github.com/Dreamacro/clash/transport/hysteria"
 
-	"github.com/HyNetwork/hysteria/pkg/obfs"
-	"github.com/HyNetwork/hysteria/pkg/pmtud_fix"
+	"github.com/HyNetwork/hysteria/pkg/pmtud"
+	"github.com/HyNetwork/hysteria/pkg/transport/pktconns/obfs"
 	"github.com/lucas-clemente/quic-go"
 )
 
@@ -177,7 +177,7 @@ func NewHysteria(option HysteriaOption) (*Hysteria, error) {
 		quicConfig.InitialConnectionReceiveWindow = DefaultConnectionReceiveWindow
 		quicConfig.MaxConnectionReceiveWindow = DefaultConnectionReceiveWindow
 	}
-	if !quicConfig.DisablePathMTUDiscovery && pmtud_fix.DisablePathMTUDiscovery {
+	if !quicConfig.DisablePathMTUDiscovery && pmtud.DisablePathMTUDiscovery {
 		log.Infoln("hysteria: Path MTU Discovery is not yet supported on this platform")
 	}
 
