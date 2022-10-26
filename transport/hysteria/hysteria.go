@@ -10,8 +10,11 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"runtime/debug"
 	"sync"
 
+	"github.com/Dreamacro/clash/component/dialer"
+	"github.com/Dreamacro/clash/log"
 	"github.com/HyNetwork/hysteria/pkg/congestion"
 	"github.com/HyNetwork/hysteria/pkg/pmtud"
 	"github.com/HyNetwork/hysteria/pkg/transport/pktconns/obfs"
@@ -26,7 +29,6 @@ var ErrClosed = errors.New("closed")
 
 type Client struct {
 	context          context.Context
-	udpconn          *net.UDPConn
 	serverAddr       string
 	protocol         string
 	sendBPS, recvBPS uint64
@@ -36,7 +38,7 @@ type Client struct {
 	tlsConfig  *tls.Config
 	quicConfig *quic.Config
 
-	quicSession    quic.Connection
+	quicConn       quic.Connection
 	reconnectMutex sync.Mutex
 	closed         bool
 
@@ -64,33 +66,43 @@ func NewClient(serverAddr string, protocol string, auth []byte, tlsConfig *tls.C
 }
 
 func (c *Client) connectToServer() error {
-	qs, err := c.QUICDial()
+	// Clear previous connection
+	if c.quicConn != nil {
+		_ = c.quicConn.CloseWithError(0, "")
+	}
+
+	log.Infoln("hysteria: client %p connect to server: %s", c, c.serverAddr)
+
+	quicConn, err := c.QUICDial()
 	if err != nil {
 		return err
 	}
+
 	// Control stream
-	stream, err := qs.OpenStreamSync(c.context)
+	ctx, ctxCancel := context.WithTimeout(context.Background(), protocolTimeout)
+	stream, err := quicConn.OpenStreamSync(ctx)
+	ctxCancel()
 	if err != nil {
-		_ = qs.CloseWithError(closeErrorCodeProtocol, "protocol error")
+		_ = quicConn.CloseWithError(closeErrorCodeProtocol, "protocol error")
 		return err
 	}
-	ok, msg, err := c.handleControlStream(qs, stream)
+	ok, msg, err := c.handleControlStream(quicConn, stream)
 	if err != nil {
-		_ = qs.CloseWithError(closeErrorCodeProtocol, "protocol error")
+		_ = quicConn.CloseWithError(closeErrorCodeProtocol, "protocol error")
 		return err
 	}
 	if !ok {
-		_ = qs.CloseWithError(closeErrorCodeAuth, "auth error")
+		_ = quicConn.CloseWithError(closeErrorCodeAuth, "auth error")
 		return fmt.Errorf("auth error: %s", msg)
 	}
 	// All good
 	c.udpSessionMap = make(map[uint32]chan *udpMessage)
-	go c.handleMessage(qs)
-	c.quicSession = qs
+	go c.handleMessage(quicConn)
+	c.quicConn = quicConn
 	return nil
 }
 
-func (c *Client) handleControlStream(qs quic.Connection, stream quic.Stream) (bool, string, error) {
+func (c *Client) handleControlStream(conn quic.Connection, stream quic.Stream) (bool, string, error) {
 	// Send protocol version
 	_, err := stream.Write([]byte{protocolVersion})
 	if err != nil {
@@ -115,14 +127,14 @@ func (c *Client) handleControlStream(qs quic.Connection, stream quic.Stream) (bo
 	}
 	// Set the congestion accordingly
 	if sh.OK {
-		qs.SetCongestionControl(congestion.NewBrutalSender(sh.Rate.RecvBPS))
+		conn.SetCongestionControl(congestion.NewBrutalSender(sh.Rate.RecvBPS))
 	}
 	return sh.OK, sh.Message, nil
 }
 
-func (c *Client) handleMessage(qs quic.Connection) {
+func (c *Client) handleMessage(conn quic.Connection) {
 	for {
-		msg, err := qs.ReceiveMessage()
+		msg, err := conn.ReceiveMessage()
 		if err != nil {
 			break
 		}
@@ -156,33 +168,38 @@ func (c *Client) openStreamWithReconnect() (quic.Connection, quic.Stream, error)
 		return nil, nil, ErrClosed
 	}
 
-	if c.quicSession == nil {
+	log.Infoln("hysteria: openStream")
+
+	if c.quicConn == nil {
 		if err := c.connectToServer(); err != nil {
 			return nil, nil, err
 		}
 	}
 
-	stream, err := c.quicSession.OpenStream()
+	stream, err := c.quicConn.OpenStream()
 	if err == nil {
 		// All good
-		return c.quicSession, &wrappedQUICStream{stream}, nil
+		return c.quicConn, &wrappedQUICStream{stream}, nil
 	}
 	// Something is wrong
 	if nErr, ok := err.(net.Error); ok && nErr.Temporary() {
 		// Temporary error, just return
 		return nil, nil, err
 	}
+
 	// Permanent error, need to reconnect
 	if err := c.connectToServer(); err != nil {
 		// Still error, oops
 		return nil, nil, err
 	}
 	// We are not going to try again even if it still fails the second time
-	stream, err = c.quicSession.OpenStream()
-	return c.quicSession, &wrappedQUICStream{stream}, err
+	stream, err = c.quicConn.OpenStream()
+	return c.quicConn, &wrappedQUICStream{stream}, err
 }
 
-func (c *Client) DialTCP(context context.Context, addr string) (net.Conn, error) {
+func (c *Client) DialTCP(ctx context.Context, addr string) (net.Conn, error) {
+	log.Infoln("hysteria: dialtcp")
+	c.context = ctx
 	host, port, err := utils.SplitHostPort(addr)
 	if err != nil {
 		return nil, err
@@ -219,7 +236,9 @@ func (c *Client) DialTCP(context context.Context, addr string) (net.Conn, error)
 	}, nil
 }
 
-func (c *Client) DialUDP() (net.PacketConn, error) {
+func (c *Client) DialUDP(ctx context.Context) (net.PacketConn, error) {
+	log.Infoln("hysteria: dialudp")
+	c.context = ctx
 	session, stream, err := c.openStreamWithReconnect()
 	if err != nil {
 		return nil, err
@@ -273,28 +292,25 @@ func (c *Client) DialUDP() (net.PacketConn, error) {
 }
 
 func (c *Client) Close() error {
+	log.Infoln("hysteria: close")
 	c.reconnectMutex.Lock()
 	defer c.reconnectMutex.Unlock()
-	err := c.quicSession.CloseWithError(closeErrorCodeGeneric, "")
+	err := c.quicConn.CloseWithError(closeErrorCodeGeneric, "")
 	c.closed = true
 	return err
 }
 
-func (c *Client) UDPSetup(ctx context.Context, conn *net.UDPConn) error {
-	c.context = ctx
-	c.udpconn = conn
-	return nil
-}
-
 func (c *Client) quicPacketConn() (net.PacketConn, error) {
-	var pktConn net.PacketConn = c.udpconn
+	pktConn, _ := dialer.ListenPacket(c.context, "udp", "", []dialer.Option{}...)
+	udpConn, _ := pktConn.(*net.UDPConn)
+	log.Infoln("hysteria: udpConn %p", udpConn)
 
 	if len(c.protocol) == 0 || c.protocol == "udp" {
 		if c.obfuscator != nil {
-			pktConn = udp.NewObfsUDPConn(c.udpconn, c.obfuscator)
+			pktConn = udp.NewObfsUDPConn(udpConn, c.obfuscator)
 		}
 	} else if c.protocol == "wechat-video" {
-		pktConn = wechat.NewObfsWeChatUDPConn(c.udpconn, c.obfuscator)
+		pktConn = wechat.NewObfsWeChatUDPConn(udpConn, c.obfuscator)
 	} else {
 		return nil, fmt.Errorf("unsupported protocol: %s", c.protocol)
 	}
@@ -303,6 +319,7 @@ func (c *Client) quicPacketConn() (net.PacketConn, error) {
 }
 
 func (c *Client) QUICDial() (quic.Connection, error) {
+	log.Infoln("hysteria: quic dial")
 	serverUDPAddr, err := net.ResolveUDPAddr("udp", c.serverAddr)
 	if err != nil {
 		return nil, err
@@ -311,10 +328,12 @@ func (c *Client) QUICDial() (quic.Connection, error) {
 	if err != nil {
 		return nil, err
 	}
-	qs, err := quic.Dial(pktConn, serverUDPAddr, c.serverAddr, c.tlsConfig, c.quicConfig)
+	quicConn, err := quic.Dial(pktConn, serverUDPAddr, c.serverAddr, c.tlsConfig, c.quicConfig)
 	if err != nil {
+		log.Errorln("hysteria: quic dial failed %v", err)
+		log.Errorln("hysteria: failure stack: %s", debug.Stack())
 		_ = pktConn.Close()
 		return nil, err
 	}
-	return qs, nil
+	return quicConn, nil
 }

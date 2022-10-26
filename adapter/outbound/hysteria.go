@@ -25,12 +25,11 @@ import (
 )
 
 const (
-	mbpsToBps   = 125000
-	minSpeedBPS = 16384
-
 	DefaultStreamReceiveWindow     = 15728640 // 15 MB/s
 	DefaultConnectionReceiveWindow = 67108864 // 64 MB/s
 	DefaultMaxIncomingStreams      = 1024
+	DefaultClientMaxIdleTimeout    = 20 * time.Second
+	DefaultClientKeepAlivePeriod   = 8 * time.Second
 
 	DefaultALPN     = "hysteria"
 	DefaultProtocol = "udp"
@@ -44,15 +43,8 @@ type Hysteria struct {
 	client *hysteria.Client
 }
 
-func (h *Hysteria) baseConnSetup(ctx context.Context, metadata *C.Metadata, opts ...dialer.Option) error {
-	pktConn, _ := dialer.ListenPacket(ctx, "udp", "", h.Base.DialOptions(opts...)...)
-	udpconn, _ := pktConn.(*net.UDPConn)
-	h.client.UDPSetup(ctx, udpconn)
-	return nil
-}
-
 func (h *Hysteria) DialContext(ctx context.Context, metadata *C.Metadata, opts ...dialer.Option) (C.Conn, error) {
-	h.baseConnSetup(ctx, metadata, opts...)
+	// log.Infoln("Options: %v", h.Base.DialOptions(opts...))
 	tcpConn, err := h.client.DialTCP(ctx, metadata.RemoteAddress())
 	if err != nil {
 		return nil, err
@@ -62,8 +54,7 @@ func (h *Hysteria) DialContext(ctx context.Context, metadata *C.Metadata, opts .
 }
 
 func (h *Hysteria) ListenPacketContext(ctx context.Context, metadata *C.Metadata, opts ...dialer.Option) (C.PacketConn, error) {
-	h.baseConnSetup(ctx, metadata, opts...)
-	udpConn, err := h.client.DialUDP()
+	udpConn, err := h.client.DialUDP(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +114,7 @@ func NewHysteria(option HysteriaOption) (*Hysteria, error) {
 	if len(option.CustomCA) > 0 {
 		bs, err = ioutil.ReadFile(option.CustomCA)
 		if err != nil {
-			return nil, fmt.Errorf("hysteria %s load ca error: %w", addr, err)
+			return nil, fmt.Errorf("hysteria %s load ca error: %v", addr, err)
 		}
 	} else if option.CustomCAString != "" {
 		bs = []byte(option.CustomCAString)
@@ -162,7 +153,8 @@ func NewHysteria(option HysteriaOption) (*Hysteria, error) {
 		MaxStreamReceiveWindow:         uint64(option.ReceiveWindowConn),
 		InitialConnectionReceiveWindow: uint64(option.ReceiveWindow),
 		MaxConnectionReceiveWindow:     uint64(option.ReceiveWindow),
-		KeepAlivePeriod:                10 * time.Second,
+		MaxIdleTimeout:                 DefaultClientMaxIdleTimeout,
+		KeepAlivePeriod:                DefaultClientKeepAlivePeriod,
 		DisablePathMTUDiscovery:        option.DisableMTUDiscovery,
 		EnableDatagrams:                true,
 	}
@@ -196,8 +188,10 @@ func NewHysteria(option HysteriaOption) (*Hysteria, error) {
 		addr, option.Protocol, auth, tlsConfig, quicConfig, up, down, obfuscator,
 	)
 	if err != nil {
+		log.Errorln("hysteria: new client error: %w", err)
 		return nil, fmt.Errorf("hysteria %s create error: %w", addr, err)
 	}
+	log.Infoln("hysteria: new client %p", client)
 	return &Hysteria{
 		Base: &Base{
 			name:  option.Name,
