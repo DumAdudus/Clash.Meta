@@ -5,6 +5,7 @@ package hysteria
 
 import (
 	"bytes"
+	"fmt"
 	"math/rand"
 	"net"
 	"time"
@@ -23,9 +24,23 @@ type quicConn struct {
 	Orig             quic.Stream
 	PseudoLocalAddr  net.Addr
 	PseudoRemoteAddr net.Addr
+	Established      bool
 }
 
 func (w *quicConn) Read(b []byte) (n int, err error) {
+	if !w.Established {
+		var sr serverResponse
+		err := struc.Unpack(w.Orig, &sr)
+		if err != nil {
+			_ = w.Close()
+			return 0, err
+		}
+		if !sr.OK {
+			_ = w.Close()
+			return 0, fmt.Errorf("connection rejected: %s", sr.Message)
+		}
+		w.Established = true
+	}
 	return w.Orig.Read(b)
 }
 

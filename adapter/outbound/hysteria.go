@@ -25,8 +25,8 @@ import (
 )
 
 const (
-	DefaultStreamReceiveWindow     = 15728640 // 15 MB/s
-	DefaultConnectionReceiveWindow = 67108864 // 64 MB/s
+	DefaultStreamReceiveWindow     = 16777216                           // 16 MB/s
+	DefaultConnectionReceiveWindow = DefaultStreamReceiveWindow * 5 / 2 // 40 MB/s
 	DefaultMaxIncomingStreams      = 1024
 	DefaultClientMaxIdleTimeout    = 20 * time.Second
 	DefaultClientKeepAlivePeriod   = 8 * time.Second
@@ -80,6 +80,7 @@ type HysteriaOption struct {
 	ReceiveWindowConn   int    `proxy:"recv_window_conn,omitempty"`
 	ReceiveWindow       int    `proxy:"recv_window,omitempty"`
 	DisableMTUDiscovery bool   `proxy:"disable_mtu_discovery,omitempty"`
+	FastOpen            bool   `proxy:"fast_open,omitempty"`
 }
 
 func (c *HysteriaOption) Speed() (uint64, uint64, error) {
@@ -185,7 +186,7 @@ func NewHysteria(option HysteriaOption) (*Hysteria, error) {
 	}
 
 	client, err := hysteria.NewClient(
-		addr, option.Protocol, auth, tlsConfig, quicConfig, up, down, obfuscator,
+		addr, option.Protocol, auth, tlsConfig, quicConfig, up, down, obfuscator, option.FastOpen,
 	)
 	if err != nil {
 		log.Errorln("hysteria: new client error: %w", err)

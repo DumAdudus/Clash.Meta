@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"runtime/debug"
 	"sync"
 
 	"github.com/Dreamacro/clash/component/dialer"
@@ -41,6 +40,7 @@ type Client struct {
 	quicConn       quic.Connection
 	reconnectMutex sync.Mutex
 	closed         bool
+	fastOpen       bool
 
 	udpSessionMutex sync.RWMutex
 	udpSessionMap   map[uint32]chan *udpMessage
@@ -48,7 +48,7 @@ type Client struct {
 }
 
 func NewClient(serverAddr string, protocol string, auth []byte, tlsConfig *tls.Config, quicConfig *quic.Config,
-	sendBPS uint64, recvBPS uint64, obfuscator obfs.Obfuscator,
+	sendBPS uint64, recvBPS uint64, obfuscator obfs.Obfuscator, fastOpen bool,
 ) (*Client, error) {
 	quicConfig.DisablePathMTUDiscovery = quicConfig.DisablePathMTUDiscovery || pmtud.DisablePathMTUDiscovery
 	c := &Client{
@@ -60,6 +60,7 @@ func NewClient(serverAddr string, protocol string, auth []byte, tlsConfig *tls.C
 		obfuscator: obfuscator,
 		tlsConfig:  tlsConfig,
 		quicConfig: quicConfig,
+		fastOpen:   fastOpen,
 	}
 
 	return c, nil
@@ -218,21 +219,27 @@ func (c *Client) DialTCP(ctx context.Context, addr string) (net.Conn, error) {
 		_ = stream.Close()
 		return nil, err
 	}
-	// Read response
-	var sr serverResponse
-	err = struc.Unpack(stream, &sr)
-	if err != nil {
-		_ = stream.Close()
-		return nil, err
+	// If fast open is enabled, we return the stream immediately
+	// and defer the response handling to the first Read() call
+	if !c.fastOpen {
+		// Read response
+		var sr serverResponse
+		err = struc.Unpack(stream, &sr)
+		if err != nil {
+			_ = stream.Close()
+			return nil, err
+		}
+		if !sr.OK {
+			_ = stream.Close()
+			return nil, fmt.Errorf("connection rejected: %s", sr.Message)
+		}
 	}
-	if !sr.OK {
-		_ = stream.Close()
-		return nil, fmt.Errorf("connection rejected: %s", sr.Message)
-	}
+
 	return &quicConn{
 		Orig:             stream,
 		PseudoLocalAddr:  session.LocalAddr(),
 		PseudoRemoteAddr: session.RemoteAddr(),
+		Established:      !c.fastOpen,
 	}, nil
 }
 
@@ -331,7 +338,7 @@ func (c *Client) QUICDial() (quic.Connection, error) {
 	quicConn, err := quic.Dial(pktConn, serverUDPAddr, c.serverAddr, c.tlsConfig, c.quicConfig)
 	if err != nil {
 		log.Errorln("hysteria: quic dial failed %v", err)
-		log.Errorln("hysteria: failure stack: %s", debug.Stack())
+		// log.Errorln("hysteria: failure stack: %s", debug.Stack())
 		_ = pktConn.Close()
 		return nil, err
 	}

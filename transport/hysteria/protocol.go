@@ -8,9 +8,8 @@ import (
 )
 
 const (
-	protocolVersion   = uint8(3)
-	protocolVersionV2 = uint8(2)
-	protocolTimeout   = 10 * time.Second
+	protocolVersion = uint8(3)
+	protocolTimeout = 10 * time.Second
 
 	closeErrorCodeGeneric  = 0
 	closeErrorCodeProtocol = 1

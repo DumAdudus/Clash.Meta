@@ -27,13 +27,6 @@ func ParseProxy(mapping map[string]any) (C.Proxy, error) {
 			break
 		}
 		proxy, err = outbound.NewShadowSocks(*ssOption)
-	case "ssr":
-		ssrOption := &outbound.ShadowSocksROption{}
-		err = decoder.Decode(mapping, ssrOption)
-		if err != nil {
-			break
-		}
-		proxy, err = outbound.NewShadowSocksR(*ssrOption)
 	case "socks5":
 		socksOption := &outbound.Socks5Option{}
 		err = decoder.Decode(mapping, socksOption)
@@ -67,13 +60,6 @@ func ParseProxy(mapping map[string]any) (C.Proxy, error) {
 			break
 		}
 		proxy, err = outbound.NewVless(*vlessOption)
-	case "snell":
-		snellOption := &outbound.SnellOption{}
-		err = decoder.Decode(mapping, snellOption)
-		if err != nil {
-			break
-		}
-		proxy, err = outbound.NewSnell(*snellOption)
 	case "trojan":
 		trojanOption := &outbound.TrojanOption{}
 		err = decoder.Decode(mapping, trojanOption)
