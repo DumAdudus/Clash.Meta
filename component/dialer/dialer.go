@@ -19,7 +19,7 @@ var (
 	DisableIPv6                = false
 )
 
-func DialContext(ctx context.Context, network, address string, options ...Option) (net.Conn, error) {
+func ApplyOptions(options ...Option) *option {
 	opt := &option{
 		interfaceName: DefaultInterface.Load(),
 		routingMark:   int(DefaultRoutingMark.Load()),
@@ -32,6 +32,12 @@ func DialContext(ctx context.Context, network, address string, options ...Option
 	for _, o := range options {
 		o(opt)
 	}
+
+	return opt
+}
+
+func DialContext(ctx context.Context, network, address string, options ...Option) (net.Conn, error) {
+	opt := ApplyOptions(options...)
 
 	switch network {
 	case "tcp4", "tcp6", "udp4", "udp6":

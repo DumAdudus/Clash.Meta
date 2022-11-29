@@ -23,14 +23,13 @@ const (
 	LoadBalance
 
 	Shadowsocks
-	ShadowsocksR
-	Snell
 	Socks5
 	Http
 	Vmess
 	Vless
 	Trojan
 	Hysteria
+	Tuic
 )
 
 const (
@@ -148,10 +147,6 @@ func (at AdapterType) String() string {
 		return "Pass"
 	case Shadowsocks:
 		return "Shadowsocks"
-	case ShadowsocksR:
-		return "ShadowsocksR"
-	case Snell:
-		return "Snell"
 	case Socks5:
 		return "Socks5"
 	case Http:
@@ -164,6 +159,8 @@ func (at AdapterType) String() string {
 		return "Trojan"
 	case Hysteria:
 		return "Hysteria"
+	case Tuic:
+		return "Tuic"
 
 	case Relay:
 		return "Relay"

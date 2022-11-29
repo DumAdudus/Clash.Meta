@@ -74,6 +74,13 @@ func ParseProxy(mapping map[string]any) (C.Proxy, error) {
 			break
 		}
 		proxy, err = outbound.NewHysteria(*hyOption)
+	case "tuic":
+		tuicOption := &outbound.TuicOption{}
+		err = decoder.Decode(mapping, tuicOption)
+		if err != nil {
+			break
+		}
+		proxy, err = outbound.NewTuic(*tuicOption)
 	default:
 		return nil, fmt.Errorf("unsupport proxy type: %s", proxyType)
 	}
