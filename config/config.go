@@ -301,6 +301,11 @@ func UnmarshalRawConfig(buf []byte) (*RawConfig, error) {
 		return nil, err
 	}
 
+	// Persist in constant
+	C.GeoIpUrl = rawCfg.GeoXUrl.GeoIp
+	C.GeoSiteUrl = rawCfg.GeoXUrl.GeoSite
+	C.MmdbUrl = rawCfg.GeoXUrl.Mmdb
+
 	return rawCfg, nil
 }
 
