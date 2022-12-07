@@ -10,14 +10,14 @@ require (
 	github.com/go-chi/render v1.0.2
 	github.com/gofrs/uuid v4.3.1+incompatible
 	github.com/gorilla/websocket v1.5.0
-	github.com/insomniacslk/dhcp v0.0.0-20221001123530-5308ebe5334c
+	github.com/insomniacslk/dhcp v0.0.0-20221128164207-f26e6d78f622
 	github.com/lucas-clemente/quic-go v0.31.0
 	github.com/lunixbochs/struc v0.0.0-20200707160740-784aaebc1d40
 	github.com/miekg/dns v1.1.50
 	github.com/oschwald/geoip2-golang v1.8.0
-	github.com/sagernet/sing v0.0.0-20220921101604-86d7d510231f
-	github.com/sagernet/sing-shadowsocks v0.0.0-20220819002358-7461bb09a8f6
-	github.com/sagernet/sing-vmess v0.0.0-20220921104047-5231f5f964db
+	github.com/sagernet/sing v0.1.0
+	github.com/sagernet/sing-shadowsocks v0.1.0
+	github.com/sagernet/sing-vmess v0.1.0
 	github.com/sirupsen/logrus v1.9.0
 	github.com/stretchr/testify v1.8.0
 	github.com/xtls/go v0.0.0-20220914232946-0441cf4cf837
@@ -25,12 +25,13 @@ require (
 	go.uber.org/atomic v1.10.0
 	go.uber.org/automaxprocs v1.5.1
 	golang.org/x/crypto v0.3.0
-	golang.org/x/exp v0.0.0-20220823124025-807a23277127
-	golang.org/x/net v0.2.0
+	golang.org/x/exp v0.0.0-20221205204356-47842c84f3db
+	golang.org/x/net v0.4.0
 	golang.org/x/sync v0.1.0
-	golang.org/x/sys v0.2.0
+	golang.org/x/sys v0.3.0
 	google.golang.org/protobuf v1.28.1
 	gopkg.in/yaml.v3 v3.0.1
+	lukechampine.com/blake3 v1.1.7
 )
 
 require (
@@ -49,9 +50,8 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/u-root/uio v0.0.0-20210528114334-82958018845c // indirect
 	golang.org/x/mod v0.7.0 // indirect
-	golang.org/x/text v0.4.0 // indirect
-	golang.org/x/tools v0.3.0 // indirect
-	lukechampine.com/blake3 v1.1.7 // indirect
+	golang.org/x/text v0.5.0 // indirect
+	golang.org/x/tools v0.4.0 // indirect
 )
 
 replace github.com/lucas-clemente/quic-go => github.com/apernet/quic-go v0.31.1-0.20221119235156-55bf700f2dd4

@@ -14,6 +14,7 @@ import (
 
 	"github.com/Dreamacro/clash/component/dialer"
 	"github.com/Dreamacro/clash/log"
+
 	"github.com/HyNetwork/hysteria/pkg/congestion"
 	"github.com/HyNetwork/hysteria/pkg/pmtud"
 	"github.com/HyNetwork/hysteria/pkg/transport/pktconns/obfs"
@@ -24,10 +25,8 @@ import (
 	"github.com/lunixbochs/struc"
 )
 
-var ErrClosed = errors.New("closed")
-
 type Client struct {
-	context          context.Context
+	dialContext      context.Context
 	serverAddr       string
 	protocol         string
 	sendBPS, recvBPS uint64
@@ -42,6 +41,7 @@ type Client struct {
 	closed         bool
 	fastOpen       bool
 
+	// UDP packets
 	udpSessionMutex sync.RWMutex
 	udpSessionMap   map[uint32]chan *udpMessage
 	udpDefragger    defragger
@@ -67,6 +67,8 @@ func NewClient(serverAddr string, protocol string, auth []byte, tlsConfig *tls.C
 }
 
 func (c *Client) connectToServer() error {
+	c.reconnectMutex.Lock()
+	defer c.reconnectMutex.Unlock()
 	// Clear previous connection
 	if c.quicConn != nil {
 		_ = c.quicConn.CloseWithError(0, "")
@@ -74,7 +76,7 @@ func (c *Client) connectToServer() error {
 
 	log.Infoln("hysteria: client %p connect to server: %s", c, c.serverAddr)
 
-	quicConn, err := c.QUICDial()
+	quicConn, err := c.getQuicConn()
 	if err != nil {
 		return err
 	}
@@ -149,6 +151,7 @@ func (c *Client) handleMessage(conn quic.Connection) {
 			continue
 		}
 		c.udpSessionMutex.RLock()
+		log.Infoln("hysteria: handleMessage %v, %v bytes", dfMsg.MsgID, dfMsg.DataLen)
 		ch, ok := c.udpSessionMap[dfMsg.SessionID]
 		if ok {
 			select {
@@ -162,50 +165,44 @@ func (c *Client) handleMessage(conn quic.Connection) {
 	}
 }
 
-func (c *Client) openStreamWithReconnect() (quic.Connection, quic.Stream, error) {
-	c.reconnectMutex.Lock()
-	defer c.reconnectMutex.Unlock()
-	if c.closed {
-		return nil, nil, ErrClosed
-	}
-
-	log.Infoln("hysteria: openStream")
-
+func (c *Client) openStream() (quic.Stream, error) {
 	if c.quicConn == nil {
-		if err := c.connectToServer(); err != nil {
-			return nil, nil, err
-		}
+		return nil, errors.New("no_conn")
+	}
+	if c.closed {
+		return nil, errors.New("closed")
 	}
 
 	stream, err := c.quicConn.OpenStream()
-	if err == nil {
-		// All good
-		return c.quicConn, &wrappedQUICStream{stream}, nil
+	if err != nil {
+		// We will tolerate temporary network error
+		if nErr, ok := err.(net.Error); !(ok && nErr.Temporary()) {
+			return nil, err
+		}
 	}
-	// Something is wrong
-	if nErr, ok := err.(net.Error); ok && nErr.Temporary() {
-		// Temporary error, just return
-		return nil, nil, err
-	}
+	return &qStream{stream}, nil
+}
 
-	// Permanent error, need to reconnect
-	if err := c.connectToServer(); err != nil {
-		// Still error, oops
-		return nil, nil, err
+func (c *Client) openStreamWithReconnect() (quic.Stream, error) {
+	stream, err := c.openStream()
+	if err != nil {
+		// need to reconnect
+		if err := c.connectToServer(); err != nil {
+			return nil, err
+		}
+		stream, err = c.openStream()
 	}
-	// We are not going to try again even if it still fails the second time
-	stream, err = c.quicConn.OpenStream()
-	return c.quicConn, &wrappedQUICStream{stream}, err
+	return stream, err
 }
 
 func (c *Client) DialTCP(ctx context.Context, addr string) (net.Conn, error) {
 	log.Infoln("hysteria: dialtcp")
-	c.context = ctx
+	c.dialContext = ctx
 	host, port, err := utils.SplitHostPort(addr)
 	if err != nil {
 		return nil, err
 	}
-	session, stream, err := c.openStreamWithReconnect()
+	stream, err := c.openStreamWithReconnect()
 	if err != nil {
 		return nil, err
 	}
@@ -235,18 +232,18 @@ func (c *Client) DialTCP(ctx context.Context, addr string) (net.Conn, error) {
 		}
 	}
 
-	return &quicConn{
-		Orig:             stream,
-		PseudoLocalAddr:  session.LocalAddr(),
-		PseudoRemoteAddr: session.RemoteAddr(),
+	return &quicStream{
+		Stream:           stream,
+		PseudoLocalAddr:  c.quicConn.LocalAddr(),
+		PseudoRemoteAddr: c.quicConn.RemoteAddr(),
 		Established:      !c.fastOpen,
 	}, nil
 }
 
 func (c *Client) DialUDP(ctx context.Context) (net.PacketConn, error) {
 	log.Infoln("hysteria: dialudp")
-	c.context = ctx
-	session, stream, err := c.openStreamWithReconnect()
+	c.dialContext = ctx
+	stream, err := c.openStreamWithReconnect()
 	if err != nil {
 		return nil, err
 	}
@@ -272,7 +269,7 @@ func (c *Client) DialUDP(ctx context.Context) (net.PacketConn, error) {
 
 	// Create a session in the map
 	c.udpSessionMutex.Lock()
-	nCh := make(chan *udpMessage, 1024)
+	nCh := make(chan *udpMessage, 128)
 	// Store the current session map for CloseFunc below
 	// to ensures that we are adding and removing sessions on the same map,
 	// as reconnecting will reassign the map
@@ -281,8 +278,8 @@ func (c *Client) DialUDP(ctx context.Context) (net.PacketConn, error) {
 	c.udpSessionMutex.Unlock()
 
 	pktConn := &quicPktConn{
-		Session: session,
-		Stream:  stream,
+		Connection: c.quicConn,
+		Stream:     stream,
 		CloseFunc: func() {
 			c.udpSessionMutex.Lock()
 			if ch, ok := sessionMap[sr.UDPSessionID]; ok {
@@ -298,19 +295,9 @@ func (c *Client) DialUDP(ctx context.Context) (net.PacketConn, error) {
 	return pktConn, nil
 }
 
-func (c *Client) Close() error {
-	log.Infoln("hysteria: close")
-	c.reconnectMutex.Lock()
-	defer c.reconnectMutex.Unlock()
-	err := c.quicConn.CloseWithError(closeErrorCodeGeneric, "")
-	c.closed = true
-	return err
-}
-
-func (c *Client) quicPacketConn() (net.PacketConn, error) {
-	pktConn, _ := dialer.ListenPacket(c.context, "udp", "", []dialer.Option{}...)
+func (c *Client) getPacketConn() (net.PacketConn, error) {
+	pktConn, _ := dialer.ListenPacket(c.dialContext, "udp", "", []dialer.Option{}...)
 	udpConn, _ := pktConn.(*net.UDPConn)
-	log.Infoln("hysteria: udpConn %p", udpConn)
 
 	if len(c.protocol) == 0 || c.protocol == "udp" {
 		if c.obfuscator != nil {
@@ -325,19 +312,18 @@ func (c *Client) quicPacketConn() (net.PacketConn, error) {
 	return pktConn, nil
 }
 
-func (c *Client) QUICDial() (quic.Connection, error) {
-	log.Infoln("hysteria: quic dial")
+func (c *Client) getQuicConn() (quic.Connection, error) {
 	serverUDPAddr, err := net.ResolveUDPAddr("udp", c.serverAddr)
 	if err != nil {
 		return nil, err
 	}
-	pktConn, err := c.quicPacketConn()
+	pktConn, err := c.getPacketConn()
 	if err != nil {
 		return nil, err
 	}
 	quicConn, err := quic.Dial(pktConn, serverUDPAddr, c.serverAddr, c.tlsConfig, c.quicConfig)
 	if err != nil {
-		log.Errorln("hysteria: quic dial failed %v", err)
+		log.Errorln("hysteria: getQuicConn failed %v", err)
 		// log.Errorln("hysteria: failure stack: %s", debug.Stack())
 		_ = pktConn.Close()
 		return nil, err
