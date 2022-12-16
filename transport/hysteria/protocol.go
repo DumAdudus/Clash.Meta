@@ -9,7 +9,7 @@ import (
 
 const (
 	protocolVersion = uint8(3)
-	protocolTimeout = 10 * time.Second
+	protocolTimeout = 5 * time.Second
 
 	closeErrorCodeGeneric  = 0
 	closeErrorCodeProtocol = 1
@@ -57,7 +57,7 @@ type udpMessage struct {
 	FragID    uint8  // doesn't matter when not fragmented, starts at 0 when fragmented
 	FragCount uint8  // must be 1 when not fragmented
 	DataLen   uint16 `struc:"sizeof=Data"`
-	Data      []byte
+	Data      []byte // max header size is 53, all before Data
 }
 
 func (m udpMessage) HeaderSize() int {

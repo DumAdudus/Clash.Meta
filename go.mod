@@ -3,7 +3,7 @@ module github.com/Dreamacro/clash
 go 1.19
 
 require (
-	github.com/HyNetwork/hysteria v1.3.0
+	github.com/apernet/hysteria/core v1.3.2
 	github.com/dlclark/regexp2 v1.7.0
 	github.com/go-chi/chi/v5 v5.0.7
 	github.com/go-chi/cors v1.2.1
@@ -19,19 +19,20 @@ require (
 	github.com/sagernet/sing-shadowsocks v0.1.0
 	github.com/sagernet/sing-vmess v0.1.0
 	github.com/sirupsen/logrus v1.9.0
-	github.com/stretchr/testify v1.8.0
+	github.com/stretchr/testify v1.8.1
+	github.com/valyala/bytebufferpool v0.0.0-20201104193830-18533face0df
 	github.com/xtls/go v0.0.0-20220914232946-0441cf4cf837
+	github.com/zeebo/blake3 v0.2.3
 	go.etcd.io/bbolt v1.3.6
 	go.uber.org/atomic v1.10.0
 	go.uber.org/automaxprocs v1.5.1
-	golang.org/x/crypto v0.3.0
-	golang.org/x/exp v0.0.0-20221205204356-47842c84f3db
+	golang.org/x/crypto v0.4.0
+	golang.org/x/exp v0.0.0-20221114191408-850992195362
 	golang.org/x/net v0.4.0
 	golang.org/x/sync v0.1.0
 	golang.org/x/sys v0.3.0
 	google.golang.org/protobuf v1.28.1
 	gopkg.in/yaml.v3 v3.0.1
-	lukechampine.com/blake3 v1.1.7
 )
 
 require (
@@ -55,3 +56,9 @@ require (
 )
 
 replace github.com/lucas-clemente/quic-go => github.com/apernet/quic-go v0.31.1-0.20221119235156-55bf700f2dd4
+
+replace github.com/sagernet/sing-shadowsocks => github.com/DumAdudus/sing-shadowsocks v0.0.0-20221209104655-e2e1315bed81
+
+replace github.com/apernet/hysteria/core => github.com/DumAdudus/hysteria/core v0.0.0-20221216065534-10f88d5e2f10
+
+// replace github.com/apernet/hysteria/core => /root/oss/hysteria_dumas/core

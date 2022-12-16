@@ -1,29 +1,31 @@
-// Modified from: https://github.com/HyNetwork/hysteria
+// Modified from: https://github.com/apernet/hysteria
 // License: MIT
 
 package hysteria
 
 import (
-	"bytes"
 	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/Dreamacro/clash/component/dialer"
 	"github.com/Dreamacro/clash/log"
 
-	"github.com/HyNetwork/hysteria/pkg/congestion"
-	"github.com/HyNetwork/hysteria/pkg/pmtud"
-	"github.com/HyNetwork/hysteria/pkg/transport/pktconns/obfs"
-	"github.com/HyNetwork/hysteria/pkg/transport/pktconns/udp"
-	"github.com/HyNetwork/hysteria/pkg/transport/pktconns/wechat"
-	"github.com/HyNetwork/hysteria/pkg/utils"
+	"github.com/apernet/hysteria/core/congestion"
+	"github.com/apernet/hysteria/core/pktconns/obfs"
+	"github.com/apernet/hysteria/core/pktconns/udp"
+	"github.com/apernet/hysteria/core/pktconns/wechat"
+	"github.com/apernet/hysteria/core/pmtud"
+	"github.com/apernet/hysteria/core/utils"
 	"github.com/lucas-clemente/quic-go"
 	"github.com/lunixbochs/struc"
 )
+
+var serverConnInterval = 5 * time.Second
 
 type Client struct {
 	dialContext      context.Context
@@ -40,11 +42,8 @@ type Client struct {
 	reconnectMutex sync.Mutex
 	closed         bool
 	fastOpen       bool
-
-	// UDP packets
-	udpSessionMutex sync.RWMutex
-	udpSessionMap   map[uint32]chan *udpMessage
-	udpDefragger    defragger
+	lastConnTime   time.Time
+	udpSession     *udpSession
 }
 
 func NewClient(serverAddr string, protocol string, auth []byte, tlsConfig *tls.Config, quicConfig *quic.Config,
@@ -69,6 +68,14 @@ func NewClient(serverAddr string, protocol string, auth []byte, tlsConfig *tls.C
 func (c *Client) connectToServer() error {
 	c.reconnectMutex.Lock()
 	defer c.reconnectMutex.Unlock()
+
+	// We have no effective way to verify if c.quicConn is working
+	// To deal with concurrent connections, we will allow only one
+	// try of connectToServer within 5 seconds
+	if c.lastConnTime.Add(serverConnInterval).After(time.Now()) {
+		return nil
+	}
+
 	// Clear previous connection
 	if c.quicConn != nil {
 		_ = c.quicConn.CloseWithError(0, "")
@@ -99,9 +106,10 @@ func (c *Client) connectToServer() error {
 		return fmt.Errorf("auth error: %s", msg)
 	}
 	// All good
-	c.udpSessionMap = make(map[uint32]chan *udpMessage)
-	go c.handleMessage(quicConn)
+	c.udpSession = NewUdpSession()
+	go c.udpSession.handleMessage(quicConn)
 	c.quicConn = quicConn
+	c.lastConnTime = time.Now()
 	return nil
 }
 
@@ -135,36 +143,6 @@ func (c *Client) handleControlStream(conn quic.Connection, stream quic.Stream) (
 	return sh.OK, sh.Message, nil
 }
 
-func (c *Client) handleMessage(conn quic.Connection) {
-	for {
-		msg, err := conn.ReceiveMessage()
-		if err != nil {
-			break
-		}
-		var udpMsg udpMessage
-		err = struc.Unpack(bytes.NewBuffer(msg), &udpMsg)
-		if err != nil {
-			continue
-		}
-		dfMsg := c.udpDefragger.Feed(udpMsg)
-		if dfMsg == nil {
-			continue
-		}
-		c.udpSessionMutex.RLock()
-		log.Infoln("hysteria: handleMessage %v, %v bytes", dfMsg.MsgID, dfMsg.DataLen)
-		ch, ok := c.udpSessionMap[dfMsg.SessionID]
-		if ok {
-			select {
-			case ch <- dfMsg:
-				// OK
-			default:
-				// Silently drop the message when the channel is full
-			}
-		}
-		c.udpSessionMutex.RUnlock()
-	}
-}
-
 func (c *Client) openStream() (quic.Stream, error) {
 	if c.quicConn == nil {
 		return nil, errors.New("no_conn")
@@ -185,7 +163,7 @@ func (c *Client) openStream() (quic.Stream, error) {
 
 func (c *Client) openStreamWithReconnect() (quic.Stream, error) {
 	stream, err := c.openStream()
-	if err != nil {
+	if err != nil && err.Error() != "closed" {
 		// need to reconnect
 		if err := c.connectToServer(); err != nil {
 			return nil, err
@@ -206,29 +184,25 @@ func (c *Client) DialTCP(ctx context.Context, addr string) (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	// Send request
-	err = struc.Pack(stream, &clientRequest{
+	err = SendServerReq(stream, &clientRequest{
 		UDP:  false,
 		Host: host,
 		Port: port,
 	})
 	if err != nil {
-		_ = stream.Close()
 		return nil, err
 	}
+
 	// If fast open is enabled, we return the stream immediately
 	// and defer the response handling to the first Read() call
 	if !c.fastOpen {
 		// Read response
 		var sr serverResponse
-		err = struc.Unpack(stream, &sr)
+		err = HandleServerResp(stream, &sr)
 		if err != nil {
-			_ = stream.Close()
 			return nil, err
-		}
-		if !sr.OK {
-			_ = stream.Close()
-			return nil, fmt.Errorf("connection rejected: %s", sr.Message)
 		}
 	}
 
@@ -247,49 +221,30 @@ func (c *Client) DialUDP(ctx context.Context) (net.PacketConn, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	// Send request
-	err = struc.Pack(stream, &clientRequest{
+	err = SendServerReq(stream, &clientRequest{
 		UDP: true,
 	})
 	if err != nil {
-		_ = stream.Close()
 		return nil, err
 	}
+
 	// Read response
 	var sr serverResponse
-	err = struc.Unpack(stream, &sr)
+	err = HandleServerResp(stream, &sr)
 	if err != nil {
-		_ = stream.Close()
 		return nil, err
 	}
-	if !sr.OK {
-		_ = stream.Close()
-		return nil, fmt.Errorf("connection rejected: %s", sr.Message)
-	}
 
-	// Create a session in the map
-	c.udpSessionMutex.Lock()
-	nCh := make(chan *udpMessage, 128)
-	// Store the current session map for CloseFunc below
-	// to ensures that we are adding and removing sessions on the same map,
-	// as reconnecting will reassign the map
-	sessionMap := c.udpSessionMap
-	sessionMap[sr.UDPSessionID] = nCh
-	c.udpSessionMutex.Unlock()
-
+	// log.Infoln("hysteria: create udp session")
+	// defer log.Infoln("hysteria: DialUDP return")
 	pktConn := &quicPktConn{
-		Connection: c.quicConn,
-		Stream:     stream,
-		CloseFunc: func() {
-			c.udpSessionMutex.Lock()
-			if ch, ok := sessionMap[sr.UDPSessionID]; ok {
-				close(ch)
-				delete(sessionMap, sr.UDPSessionID)
-			}
-			c.udpSessionMutex.Unlock()
-		},
+		Connection:   c.quicConn,
+		Stream:       stream,
+		UdpSession:   c.udpSession,
 		UDPSessionID: sr.UDPSessionID,
-		MsgCh:        nCh,
+		MsgCh:        c.udpSession.CreateSession(sr.UDPSessionID),
 	}
 	go pktConn.Hold()
 	return pktConn, nil
@@ -329,4 +284,25 @@ func (c *Client) getQuicConn() (quic.Connection, error) {
 		return nil, err
 	}
 	return quicConn, nil
+}
+
+func SendServerReq(s quic.Stream, r *clientRequest) error {
+	err := struc.Pack(s, r)
+	if err != nil {
+		_ = s.Close()
+	}
+	return err
+}
+
+func HandleServerResp(s quic.Stream, sr *serverResponse) error {
+	err := struc.Unpack(s, sr)
+	if err != nil {
+		_ = s.Close()
+		return err
+	}
+	if !sr.OK {
+		_ = s.Close()
+		return fmt.Errorf("connection rejected: %s", sr.Message)
+	}
+	return nil
 }

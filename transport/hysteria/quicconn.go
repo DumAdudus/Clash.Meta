@@ -4,20 +4,20 @@
 package hysteria
 
 import (
-	"bytes"
 	"errors"
-	"fmt"
 	"math/rand"
 	"net"
 
-	"github.com/HyNetwork/hysteria/pkg/utils"
+	"github.com/apernet/hysteria/core/utils"
 	"github.com/lucas-clemente/quic-go"
 	"github.com/lunixbochs/struc"
+	"github.com/valyala/bytebufferpool"
 )
 
 var (
-	_ net.Conn       = &quicStream{}
-	_ net.PacketConn = &quicPktConn{}
+	_       net.Conn       = &quicStream{}
+	_       net.PacketConn = &quicPktConn{}
+	holdBuf                = make([]byte, 1024)
 )
 
 type quicStream struct {
@@ -30,14 +30,9 @@ type quicStream struct {
 func (s *quicStream) Read(b []byte) (n int, err error) {
 	if !s.Established {
 		var sr serverResponse
-		err := struc.Unpack(s.Stream, &sr)
+		err = HandleServerResp(s.Stream, &sr)
 		if err != nil {
-			_ = s.Close()
 			return 0, err
-		}
-		if !sr.OK {
-			_ = s.Close()
-			return 0, fmt.Errorf("connection rejected: %s", sr.Message)
 		}
 		s.Established = true
 	}
@@ -55,16 +50,15 @@ func (s *quicStream) RemoteAddr() net.Addr {
 type quicPktConn struct {
 	quic.Connection
 	quic.Stream
-	CloseFunc    func()
+	UdpSession   *udpSession
 	UDPSessionID uint32
 	MsgCh        <-chan *udpMessage
 }
 
 func (c *quicPktConn) Hold() {
 	// Hold the stream until it's closed
-	buf := make([]byte, 1024)
 	for {
-		_, err := c.Stream.Read(buf)
+		_, err := c.Stream.Read(holdBuf)
 		if err != nil {
 			break
 		}
@@ -101,8 +95,9 @@ func (c *quicPktConn) WriteTo(p []byte, addr net.Addr) (n int, err error) {
 		Data:      p,
 	}
 	// try no frag first
-	var msgBuf bytes.Buffer
-	_ = struc.Pack(&msgBuf, &msg)
+	msgBuf := bytebufferpool.Get()
+	defer bytebufferpool.Put(msgBuf)
+	_ = struc.Pack(msgBuf, &msg)
 	err = c.Connection.SendMessage(msgBuf.Bytes())
 	if err != nil {
 		if errSize, ok := err.(quic.ErrMessageToLarge); ok {
@@ -111,7 +106,7 @@ func (c *quicPktConn) WriteTo(p []byte, addr net.Addr) (n int, err error) {
 			fragMsgs := fragUDPMessage(msg, int(errSize))
 			for _, fragMsg := range fragMsgs {
 				msgBuf.Reset()
-				_ = struc.Pack(&msgBuf, &fragMsg)
+				_ = struc.Pack(msgBuf, &fragMsg)
 				err = c.Connection.SendMessage(msgBuf.Bytes())
 				if err != nil {
 					return
@@ -128,6 +123,6 @@ func (c *quicPktConn) WriteTo(p []byte, addr net.Addr) (n int, err error) {
 }
 
 func (c *quicPktConn) Close() error {
-	c.CloseFunc()
+	c.UdpSession.CloseSession(c.UDPSessionID)
 	return c.Stream.Close()
 }

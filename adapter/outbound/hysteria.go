@@ -19,8 +19,8 @@ import (
 	"github.com/Dreamacro/clash/log"
 	"github.com/Dreamacro/clash/transport/hysteria"
 
-	"github.com/HyNetwork/hysteria/pkg/pmtud"
-	"github.com/HyNetwork/hysteria/pkg/transport/pktconns/obfs"
+	"github.com/apernet/hysteria/core/pktconns/obfs"
+	"github.com/apernet/hysteria/core/pmtud"
 	"github.com/lucas-clemente/quic-go"
 )
 
