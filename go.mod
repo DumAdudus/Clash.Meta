@@ -59,6 +59,6 @@ replace github.com/lucas-clemente/quic-go => github.com/apernet/quic-go v0.31.1-
 
 replace github.com/sagernet/sing-shadowsocks => github.com/DumAdudus/sing-shadowsocks v0.0.0-20221209104655-e2e1315bed81
 
-replace github.com/apernet/hysteria/core => github.com/DumAdudus/hysteria/core v0.0.0-20221216065534-10f88d5e2f10
+replace github.com/apernet/hysteria/core => github.com/DumAdudus/hysteria/core v0.0.0-20221219040730-1580c0852449
 
 // replace github.com/apernet/hysteria/core => /root/oss/hysteria_dumas/core

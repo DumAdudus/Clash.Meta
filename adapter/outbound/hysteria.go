@@ -175,7 +175,11 @@ func NewHysteria(option HysteriaOption) (*Hysteria, error) {
 	auth := []byte(option.AuthString)
 	var obfuscator obfs.Obfuscator
 	if len(option.Obfs) > 0 {
-		obfuscator = obfs.NewXPlusObfuscator([]byte(option.Obfs))
+		if option.Obfs == obfs.FlipTrigger {
+			obfuscator = obfs.NewFlipObfuscator()
+		} else {
+			obfuscator = obfs.NewXPlusObfuscator([]byte(option.Obfs))
+		}
 	}
 
 	up, down, err := option.Speed()
