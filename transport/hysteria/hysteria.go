@@ -6,19 +6,15 @@ package hysteria
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"fmt"
 	"net"
 	"sync"
 	"time"
 
-	"github.com/Dreamacro/clash/component/dialer"
 	"github.com/Dreamacro/clash/log"
 
 	"github.com/apernet/hysteria/core/congestion"
 	"github.com/apernet/hysteria/core/pktconns/obfs"
-	"github.com/apernet/hysteria/core/pktconns/udp"
-	"github.com/apernet/hysteria/core/pktconns/wechat"
 	"github.com/apernet/hysteria/core/pmtud"
 	"github.com/apernet/hysteria/core/utils"
 	"github.com/lucas-clemente/quic-go"
@@ -34,6 +30,8 @@ type Client struct {
 	sendBPS, recvBPS uint64
 	auth             []byte
 	obfuscator       obfs.Obfuscator
+	multiPath        string
+	concurrent       int
 
 	tlsConfig  *tls.Config
 	quicConfig *quic.Config
@@ -46,8 +44,9 @@ type Client struct {
 	udpSession     *udpSession
 }
 
-func NewClient(serverAddr string, protocol string, auth []byte, tlsConfig *tls.Config, quicConfig *quic.Config,
-	sendBPS uint64, recvBPS uint64, obfuscator obfs.Obfuscator, fastOpen bool,
+func NewClient(serverAddr string, protocol string, auth []byte, tlsConfig *tls.Config,
+	quicConfig *quic.Config, sendBPS uint64, recvBPS uint64, obfuscator obfs.Obfuscator,
+	fastOpen bool, multiPath string, concurrent int,
 ) (*Client, error) {
 	quicConfig.DisablePathMTUDiscovery = quicConfig.DisablePathMTUDiscovery || pmtud.DisablePathMTUDiscovery
 	c := &Client{
@@ -60,6 +59,8 @@ func NewClient(serverAddr string, protocol string, auth []byte, tlsConfig *tls.C
 		tlsConfig:  tlsConfig,
 		quicConfig: quicConfig,
 		fastOpen:   fastOpen,
+		multiPath:  multiPath,
+		concurrent: concurrent,
 	}
 
 	return c, nil
@@ -145,10 +146,10 @@ func (c *Client) handleControlStream(conn quic.Connection, stream quic.Stream) (
 
 func (c *Client) openStream() (quic.Stream, error) {
 	if c.quicConn == nil {
-		return nil, errors.New("no_conn")
+		return nil, ErrNoConn
 	}
 	if c.closed {
-		return nil, errors.New("closed")
+		return nil, ErrConnClosed
 	}
 
 	stream, err := c.quicConn.OpenStream()
@@ -163,7 +164,7 @@ func (c *Client) openStream() (quic.Stream, error) {
 
 func (c *Client) openStreamWithReconnect() (quic.Stream, error) {
 	stream, err := c.openStream()
-	if err != nil && err.Error() != "closed" {
+	if err != nil && err != ErrConnClosed {
 		// need to reconnect
 		if err := c.connectToServer(); err != nil {
 			return nil, err
@@ -174,7 +175,6 @@ func (c *Client) openStreamWithReconnect() (quic.Stream, error) {
 }
 
 func (c *Client) DialTCP(ctx context.Context, addr string) (net.Conn, error) {
-	log.Infoln("hysteria: dialtcp")
 	c.dialContext = ctx
 	host, port, err := utils.SplitHostPort(addr)
 	if err != nil {
@@ -206,7 +206,7 @@ func (c *Client) DialTCP(ctx context.Context, addr string) (net.Conn, error) {
 		}
 	}
 
-	return &quicStream{
+	return &hyTcp{
 		Stream:           stream,
 		PseudoLocalAddr:  c.quicConn.LocalAddr(),
 		PseudoRemoteAddr: c.quicConn.RemoteAddr(),
@@ -215,7 +215,6 @@ func (c *Client) DialTCP(ctx context.Context, addr string) (net.Conn, error) {
 }
 
 func (c *Client) DialUDP(ctx context.Context) (net.PacketConn, error) {
-	log.Infoln("hysteria: dialudp")
 	c.dialContext = ctx
 	stream, err := c.openStreamWithReconnect()
 	if err != nil {
@@ -239,7 +238,7 @@ func (c *Client) DialUDP(ctx context.Context) (net.PacketConn, error) {
 
 	// log.Infoln("hysteria: create udp session")
 	// defer log.Infoln("hysteria: DialUDP return")
-	pktConn := &quicPktConn{
+	pktConn := &hyUdp{
 		Connection:   c.quicConn,
 		Stream:       stream,
 		UdpSession:   c.udpSession,
@@ -250,21 +249,10 @@ func (c *Client) DialUDP(ctx context.Context) (net.PacketConn, error) {
 	return pktConn, nil
 }
 
-func (c *Client) getPacketConn() (net.PacketConn, error) {
-	pktConn, _ := dialer.ListenPacket(c.dialContext, "udp", "", []dialer.Option{}...)
-	udpConn, _ := pktConn.(*net.UDPConn)
-
-	if len(c.protocol) == 0 || c.protocol == "udp" {
-		if c.obfuscator != nil {
-			pktConn = udp.NewObfsUDPConn(udpConn, c.obfuscator)
-		}
-	} else if c.protocol == "wechat-video" {
-		pktConn = wechat.NewObfsWeChatUDPConn(udpConn, c.obfuscator)
-	} else {
-		return nil, fmt.Errorf("unsupported protocol: %s", c.protocol)
-	}
-
-	return pktConn, nil
+func (c *Client) getFromPool(addr net.Addr) (net.PacketConn, error) {
+	connPool, _ := NewConnPool(&c.dialContext, addr, c.protocol, c.obfuscator, c.multiPath, c.concurrent)
+	connPool.Init()
+	return connPool, nil
 }
 
 func (c *Client) getQuicConn() (quic.Connection, error) {
@@ -272,7 +260,12 @@ func (c *Client) getQuicConn() (quic.Connection, error) {
 	if err != nil {
 		return nil, err
 	}
-	pktConn, err := c.getPacketConn()
+	var pktConn net.PacketConn
+	if len(c.multiPath) > 0 {
+		pktConn, err = c.getFromPool(serverUDPAddr)
+	} else {
+		pktConn, err = GetPacketConn(c.dialContext, c.protocol, c.obfuscator)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -284,25 +277,4 @@ func (c *Client) getQuicConn() (quic.Connection, error) {
 		return nil, err
 	}
 	return quicConn, nil
-}
-
-func SendServerReq(s quic.Stream, r *clientRequest) error {
-	err := struc.Pack(s, r)
-	if err != nil {
-		_ = s.Close()
-	}
-	return err
-}
-
-func HandleServerResp(s quic.Stream, sr *serverResponse) error {
-	err := struc.Unpack(s, sr)
-	if err != nil {
-		_ = s.Close()
-		return err
-	}
-	if !sr.OK {
-		_ = s.Close()
-		return fmt.Errorf("connection rejected: %s", sr.Message)
-	}
-	return nil
 }

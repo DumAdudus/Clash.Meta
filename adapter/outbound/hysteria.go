@@ -35,7 +35,10 @@ const (
 	DefaultProtocol = "udp"
 )
 
-var rateStringRegexp = regexp.MustCompile(`^(\d+)\s*([KMGT]?)([Bb])ps$`)
+var (
+	rateStringRegexp = regexp.MustCompile(`^(\d+)\s*([KMGT]?)([Bb])ps$`)
+	multiPathRegexp  = regexp.MustCompile(`\d+-\d+`)
+)
 
 type Hysteria struct {
 	*Base
@@ -81,6 +84,8 @@ type HysteriaOption struct {
 	ReceiveWindow       int    `proxy:"recv_window,omitempty"`
 	DisableMTUDiscovery bool   `proxy:"disable_mtu_discovery,omitempty"`
 	FastOpen            bool   `proxy:"fast_open,omitempty"`
+	MultiPath           string `proxy:"multi_path,omitempty"`
+	Concurrent          int    `proxy:"concurrent,omitempty"`
 }
 
 func (c *HysteriaOption) Speed() (uint64, uint64, error) {
@@ -108,6 +113,12 @@ func NewHysteria(option HysteriaOption) (*Hysteria, error) {
 		ServerName:         serverName,
 		InsecureSkipVerify: option.SkipCertVerify,
 		MinVersion:         tls.VersionTLS13,
+	}
+
+	if len(option.MultiPath) > 0 {
+		if !multiPathRegexp.Match([]byte(option.MultiPath)) {
+			return nil, fmt.Errorf("hysteria invalid multi path: %s", option.MultiPath)
+		}
 	}
 
 	var bs []byte
@@ -188,7 +199,8 @@ func NewHysteria(option HysteriaOption) (*Hysteria, error) {
 	}
 
 	client, err := hysteria.NewClient(
-		addr, option.Protocol, auth, tlsConfig, quicConfig, up, down, obfuscator, option.FastOpen,
+		addr, option.Protocol, auth, tlsConfig, quicConfig, up, down, obfuscator,
+		option.FastOpen, option.MultiPath, option.Concurrent,
 	)
 	if err != nil {
 		log.Errorln("hysteria: new client error: %w", err)

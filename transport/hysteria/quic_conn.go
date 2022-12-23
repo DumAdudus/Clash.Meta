@@ -4,7 +4,6 @@
 package hysteria
 
 import (
-	"errors"
 	"math/rand"
 	"net"
 
@@ -15,19 +14,19 @@ import (
 )
 
 var (
-	_       net.Conn       = &quicStream{}
-	_       net.PacketConn = &quicPktConn{}
+	_       net.Conn       = &hyTcp{}
+	_       net.PacketConn = &hyUdp{}
 	holdBuf                = make([]byte, 1024)
 )
 
-type quicStream struct {
+type hyTcp struct {
 	quic.Stream
 	PseudoLocalAddr  net.Addr
 	PseudoRemoteAddr net.Addr
 	Established      bool
 }
 
-func (s *quicStream) Read(b []byte) (n int, err error) {
+func (s *hyTcp) Read(b []byte) (n int, err error) {
 	if !s.Established {
 		var sr serverResponse
 		err = HandleServerResp(s.Stream, &sr)
@@ -39,15 +38,15 @@ func (s *quicStream) Read(b []byte) (n int, err error) {
 	return s.Stream.Read(b)
 }
 
-func (s *quicStream) LocalAddr() net.Addr {
+func (s *hyTcp) LocalAddr() net.Addr {
 	return s.PseudoLocalAddr
 }
 
-func (s *quicStream) RemoteAddr() net.Addr {
+func (s *hyTcp) RemoteAddr() net.Addr {
 	return s.PseudoRemoteAddr
 }
 
-type quicPktConn struct {
+type hyUdp struct {
 	quic.Connection
 	quic.Stream
 	UdpSession   *udpSession
@@ -55,7 +54,7 @@ type quicPktConn struct {
 	MsgCh        <-chan *udpMessage
 }
 
-func (c *quicPktConn) Hold() {
+func (c *hyUdp) Hold() {
 	// Hold the stream until it's closed
 	for {
 		_, err := c.Stream.Read(holdBuf)
@@ -66,11 +65,11 @@ func (c *quicPktConn) Hold() {
 	_ = c.Close()
 }
 
-func (c *quicPktConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
+func (c *hyUdp) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
 	msg := <-c.MsgCh
 	if msg == nil {
 		// Closed
-		return 0, nil, errors.New("closed")
+		return 0, nil, ErrConnClosed
 	}
 	ip, zone := utils.ParseIPZone(msg.Host)
 	addr = &net.UDPAddr{
@@ -82,7 +81,7 @@ func (c *quicPktConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
 	return
 }
 
-func (c *quicPktConn) WriteTo(p []byte, addr net.Addr) (n int, err error) {
+func (c *hyUdp) WriteTo(p []byte, addr net.Addr) (n int, err error) {
 	host, port, err := utils.SplitHostPort(addr.String())
 	if err != nil {
 		return
@@ -122,7 +121,7 @@ func (c *quicPktConn) WriteTo(p []byte, addr net.Addr) (n int, err error) {
 	return
 }
 
-func (c *quicPktConn) Close() error {
+func (c *hyUdp) Close() error {
 	c.UdpSession.CloseSession(c.UDPSessionID)
 	return c.Stream.Close()
 }
