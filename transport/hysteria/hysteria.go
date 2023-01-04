@@ -37,6 +37,7 @@ type Client struct {
 	quicConfig *quic.Config
 
 	quicConn       quic.Connection
+	pktConn        *connStub
 	reconnectMutex sync.Mutex
 	closed         bool
 	fastOpen       bool
@@ -66,25 +67,44 @@ func NewClient(serverAddr string, protocol string, auth []byte, tlsConfig *tls.C
 	return c, nil
 }
 
-func (c *Client) connectToServer() error {
-	c.reconnectMutex.Lock()
-	defer c.reconnectMutex.Unlock()
+func (c *Client) connectToServer(force bool) error {
+	// c.reconnectMutex.Lock()
+	// defer c.reconnectMutex.Unlock()
 
 	// We have no effective way to verify if c.quicConn is working
 	// To deal with concurrent connections, we will allow only one
 	// try of connectToServer within 5 seconds
-	if c.lastConnTime.Add(serverConnInterval).After(time.Now()) {
+	if !force && c.lastConnTime.Add(serverConnInterval).After(time.Now()) {
 		return nil
 	}
 
-	// Clear previous connection
+	// If QUIC connection is already set, reuse it,
+	// and reset underlying UDPConn
 	if c.quicConn != nil {
-		_ = c.quicConn.CloseWithError(0, "")
+		if force {
+			_ = c.quicConn.CloseWithError(0, "")
+			_ = c.pktConn.Close()
+		} else {
+			old := c.pktConn.PacketConn
+			serverUDPAddr, err := net.ResolveUDPAddr("udp", c.serverAddr)
+			if err != nil {
+				return err
+			}
+			stub, err := c.getConnStub(serverUDPAddr)
+			if err != nil {
+				return err
+			}
+			c.pktConn.PacketConn = stub.PacketConn
+			c.lastConnTime = time.Now()
+			log.Infoln("hysteria: client %p reset UDPConn to server: %s", c, c.serverAddr)
+			old.Close()
+			return nil
+		}
 	}
 
 	log.Infoln("hysteria: client %p connect to server: %s", c, c.serverAddr)
 
-	quicConn, err := c.getQuicConn()
+	quicConn, pktConn, err := c.getQuicConn()
 	if err != nil {
 		return err
 	}
@@ -110,6 +130,7 @@ func (c *Client) connectToServer() error {
 	c.udpSession = NewUdpSession()
 	go c.udpSession.handleMessage(quicConn)
 	c.quicConn = quicConn
+	c.pktConn = pktConn
 	c.lastConnTime = time.Now()
 	return nil
 }
@@ -162,16 +183,27 @@ func (c *Client) openStream() (quic.Stream, error) {
 	return &qStream{stream}, nil
 }
 
-func (c *Client) openStreamWithReconnect() (quic.Stream, error) {
-	stream, err := c.openStream()
+func (c *Client) openStreamWithReconnect() (stream quic.Stream, err error) {
+	stream, err = c.openStream()
 	if err != nil && err != ErrConnClosed {
+		c.reconnectMutex.Lock()
+		defer c.reconnectMutex.Unlock()
 		// need to reconnect
-		if err := c.connectToServer(); err != nil {
-			return nil, err
+		// just reset underlying UDPConn
+		if err = c.connectToServer(false); err != nil {
+			return
 		}
 		stream, err = c.openStream()
+		// if the quic conn is closed remotely, we need to restart handshake
+		// if _, ok := err.(*quic.IdleTimeoutError); ok {
+		if err != nil {
+			if err = c.connectToServer(true); err != nil {
+				return
+			}
+			stream, err = c.openStream()
+		}
 	}
-	return stream, err
+	return
 }
 
 func (c *Client) DialTCP(ctx context.Context, addr string) (net.Conn, error) {
@@ -206,7 +238,7 @@ func (c *Client) DialTCP(ctx context.Context, addr string) (net.Conn, error) {
 		}
 	}
 
-	return &hyTcp{
+	return &hyTCPConn{
 		Stream:           stream,
 		PseudoLocalAddr:  c.quicConn.LocalAddr(),
 		PseudoRemoteAddr: c.quicConn.RemoteAddr(),
@@ -238,7 +270,7 @@ func (c *Client) DialUDP(ctx context.Context) (net.PacketConn, error) {
 
 	// log.Infoln("hysteria: create udp session")
 	// defer log.Infoln("hysteria: DialUDP return")
-	pktConn := &hyUdp{
+	pktConn := &hyUDPConn{
 		Connection:   c.quicConn,
 		Stream:       stream,
 		UdpSession:   c.udpSession,
@@ -255,11 +287,25 @@ func (c *Client) getFromPool(addr net.Addr) (net.PacketConn, error) {
 	return connPool, nil
 }
 
-func (c *Client) getQuicConn() (quic.Connection, error) {
+func (c *Client) getQuicConn() (quic.Connection, *connStub, error) {
 	serverUDPAddr, err := net.ResolveUDPAddr("udp", c.serverAddr)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	stub, err := c.getConnStub(serverUDPAddr)
+	if err != nil {
+		return nil, nil, err
+	}
+	quicConn, err := quic.Dial(stub, serverUDPAddr, c.serverAddr, c.tlsConfig, c.quicConfig)
+	if err != nil {
+		log.Errorln("hysteria: getQuicConn failed %v", err)
+		_ = stub.Close()
+		return nil, nil, err
+	}
+	return quicConn, stub, nil
+}
+
+func (c *Client) getConnStub(serverUDPAddr *net.UDPAddr) (stub *connStub, err error) {
 	var pktConn net.PacketConn
 	if len(c.multiPath) > 0 {
 		pktConn, err = c.getFromPool(serverUDPAddr)
@@ -267,14 +313,12 @@ func (c *Client) getQuicConn() (quic.Connection, error) {
 		pktConn, err = GetPacketConn(c.dialContext, c.protocol, c.obfuscator)
 	}
 	if err != nil {
-		return nil, err
+		return
 	}
-	quicConn, err := quic.Dial(pktConn, serverUDPAddr, c.serverAddr, c.tlsConfig, c.quicConfig)
-	if err != nil {
-		log.Errorln("hysteria: getQuicConn failed %v", err)
-		// log.Errorln("hysteria: failure stack: %s", debug.Stack())
-		_ = pktConn.Close()
-		return nil, err
-	}
-	return quicConn, nil
+	stub = &connStub{pktConn}
+	return
+}
+
+type connStub struct {
+	net.PacketConn
 }

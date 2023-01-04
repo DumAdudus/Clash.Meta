@@ -60,7 +60,7 @@ func (s *udpSession) handleMessage(conn quic.Connection) {
 		}
 
 		s.mapRWLock.RLock()
-		log.Infoln("hysteria: handleMessage %v, %v bytes", dfMsg.MsgID, dfMsg.DataLen)
+		log.Debugln("hysteria: handleMessage %v, %v bytes", dfMsg.MsgID, dfMsg.DataLen)
 		ch, ok := s.sessionMap[dfMsg.SessionID]
 		s.mapRWLock.RUnlock()
 
@@ -69,6 +69,7 @@ func (s *udpSession) handleMessage(conn quic.Connection) {
 			case ch <- dfMsg:
 				// OK
 			default:
+				log.Errorln("hysteria: udpSession dropped %v bytes", dfMsg.DataLen)
 				// Silently drop the message when the channel is full
 			}
 		}

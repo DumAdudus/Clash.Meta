@@ -17,10 +17,10 @@ import (
 )
 
 const (
-	packetQueueSize = 128
-	recvBufferSize  = 1500
-	routineMaxSend  = 1024 * 8 //~8MB for each UDP routine
-	defaultPaths    = 2
+	packetQueueSize   = 256
+	recvBufferSize    = 1500
+	routineMaxSend    = 1024 * 32
+	defaultConcurrent = 2
 )
 
 var (
@@ -39,8 +39,8 @@ func NewConnPool(ctx *context.Context, addr net.Addr, protocol string, obfs obfs
 		idxPool:    make(map[int]interface{}),
 	}
 
-	if cp.concurrent == 0 {
-		cp.concurrent = defaultPaths
+	if cp.concurrent <= 0 {
+		cp.concurrent = defaultConcurrent
 	}
 
 	pRange := strings.Split(portRange, "-")
@@ -65,12 +65,11 @@ type connPool struct {
 	obfuscator obfs.Obfuscator
 	concurrent int
 
-	addrPool []net.Addr
-	workPool map[*connRoutine]interface{}
-	idxPool  map[int]interface{}
-
-	history []*connRoutine
-	hisLock sync.Mutex
+	addrPool   []net.Addr
+	workPool   map[*connRoutine]interface{}
+	idxPool    map[int]interface{}
+	history    []*connRoutine
+	rotateLock sync.Mutex
 
 	recvQueue chan *udpPacket
 
@@ -81,18 +80,7 @@ func (cp *connPool) Init() {
 	cp.recvQueue = make(chan *udpPacket, packetQueueSize)
 	randIndices := rand.Perm(len(cp.addrPool))[:cp.concurrent]
 	for i := 0; i < cp.concurrent; i++ {
-		pktConn, _ := cp.getPacketConn()
-		r := &connRoutine{
-			addrPoolIdx:   randIndices[i],
-			conn:          pktConn,
-			poolRecvQueue: cp.recvQueue,
-			remoteAddr:    cp.addrPool[randIndices[i]],
-			maxSend:       routineMaxSend,
-		}
-		go r.recvLoop()
-		log.Infoln("New conn: %s", r.remoteAddr)
-		cp.workPool[r] = struct{}{}
-		cp.idxPool[randIndices[i]] = struct{}{}
+		r := cp.newConnRoutine(randIndices[i])
 		cp.history = append(cp.history, r)
 	}
 }
@@ -101,12 +89,22 @@ func (cp *connPool) getPacketConn() (net.PacketConn, error) {
 	return GetPacketConn(*cp.context, cp.protocol, cp.obfuscator)
 }
 
-func (cp *connPool) ReadFrom(b []byte) (int, net.Addr, error) {
+func (cp *connPool) ReadFrom(b []byte) (n int, addr net.Addr, err error) {
+	if cp.closed {
+		return 0, nil, ErrConnClosed
+	}
+	addr = cp.serverAddr
+
 	p := <-cp.recvQueue
-	n := copy(b, p.buf.Bytes()[:p.n])
+	if p == nil {
+		// comment below line out due to QUIC conn reuse would fail
+		// so we just swallow the error and return nothing
+		// err = ErrConnClosed
+		return
+	}
+	n = copy(b, p.buf.Bytes()[:p.n])
 	bytebufferpool.Put(p.buf)
-	// fmt.Println("ReadFrom")
-	return n, cp.serverAddr, nil
+	return
 }
 
 func (cp *connPool) WriteTo(p []byte, addr net.Addr) (n int, err error) {
@@ -120,20 +118,30 @@ func (cp *connPool) WriteTo(p []byte, addr net.Addr) (n int, err error) {
 		if err == nil {
 			return
 		} else if err == ErrMaxSend {
-			r, _ := cp.rotate()
-			n, err = r.writeTo(p)
+			var r *connRoutine
+			r, err = cp.rotate(conn)
+			if err == nil {
+				n, err = r.writeTo(p)
+			} else if err == ErrConnRotated {
+				continue
+			}
 			return
 		}
-		log.Infoln("Write To error: %v", err)
+		log.Errorln("hysteria: concurrent WriteTo error: %v", err)
 	}
 	return
 }
 
 func (cp *connPool) Close() error {
 	cp.closed = true
+	log.Infoln("hyeteria: close pool")
+	// Grace time before closing pool connections
+	time.Sleep(500 * time.Millisecond)
 	for _, conn := range cp.history {
 		conn.close()
 	}
+	// Grace time before closing receive queue
+	time.Sleep(500 * time.Millisecond)
 	close(cp.recvQueue)
 	return nil
 }
@@ -143,32 +151,32 @@ func (cp *connPool) LocalAddr() net.Addr {
 }
 
 func (cp *connPool) SetDeadline(t time.Time) error {
-	log.Infoln("SetDeadline %d", t.Second())
+	log.Infoln("hysteria: SetDeadline %d", t.Second())
 	return nil
 }
 
 func (cp *connPool) SetReadDeadline(t time.Time) error {
-	log.Infoln("SetReadDeadline %d", t.Second())
+	log.Infoln("hysteria: SetReadDeadline %d", t.Second())
 	return nil
 }
 
 func (cp *connPool) SetWriteDeadline(t time.Time) error {
-	log.Infoln("SetWriteDeadline %d", t.Second())
+	log.Infoln("hysteria: SetWriteDeadline %d", t.Second())
 	return nil
 }
 
 func (cp *connPool) SetReadBuffer(bytes int) error {
-	log.Infoln("Read buffer: %d", bytes)
+	log.Infoln("hysteria: read buffer: %d", bytes)
 	return nil
 }
 
 func (cp *connPool) SetWriteBuffer(bytes int) error {
-	log.Infoln("Write buffer: %d", bytes)
+	log.Infoln("hysteria: write buffer: %d", bytes)
 	return nil
 }
 
 func (cp *connPool) SyscallConn() (syscall.RawConn, error) {
-	return &RawConn{workPool: cp.workPool}, nil
+	return &RawConn{cp.workPool}, nil
 }
 
 func (cp *connPool) pickConn() *connRoutine {
@@ -183,7 +191,17 @@ func (cp *connPool) pickConn() *connRoutine {
 	return nil
 }
 
-func (cp *connPool) rotate() (*connRoutine, error) {
+func (cp *connPool) rotate(old *connRoutine) (*connRoutine, error) {
+	if cp.closed {
+		return nil, ErrConnClosed
+	}
+
+	cp.rotateLock.Lock()
+	defer cp.rotateLock.Unlock()
+	if _, found := cp.workPool[old]; !found {
+		return nil, ErrConnRotated
+	}
+
 	var i int
 	for {
 		i = rand.Intn(len(cp.addrPool))
@@ -191,40 +209,41 @@ func (cp *connPool) rotate() (*connRoutine, error) {
 			break
 		}
 	}
-	pktConn, _ := cp.getPacketConn()
-	r := &connRoutine{
-		conn:          pktConn,
-		poolRecvQueue: cp.recvQueue,
-		remoteAddr:    cp.addrPool[i],
-		maxSend:       routineMaxSend,
-	}
-	go r.recvLoop()
-	log.Infoln("New conn: %s", r.remoteAddr)
-	cp.workPool[r] = struct{}{}
-	cp.idxPool[i] = struct{}{}
+	newConn := cp.newConnRoutine(i)
 
-	used := cp.history[:cp.concurrent]
+	// remove max send connRoutine from work pool
+	log.Infoln("hysteria: recycle conn %s", old.remoteAddr)
+	delete(cp.workPool, old)
+	delete(cp.idxPool, old.addrPoolIdx)
 
-	cp.hisLock.Lock()
-	cp.history = append(cp.history, r)
-	if len(cp.history) >= 3*cp.concurrent {
+	cp.history = append(cp.history, newConn)
+	if len(cp.history) >= 4*cp.concurrent {
+		used := cp.history[:cp.concurrent]
 		cp.history = cp.history[cp.concurrent:]
 		for _, conn := range used {
-			log.Infoln("Close conn: %s", conn.remoteAddr)
+			log.Infoln("hysteria: close conn %s", conn.remoteAddr)
 			conn.close()
 		}
 	}
-	cp.hisLock.Unlock()
 
-	for conn := range cp.workPool {
-		if conn.isMaxSend() {
-			log.Infoln("Recycle conn: %s", conn.remoteAddr)
-			delete(cp.workPool, conn)
-			delete(cp.idxPool, conn.addrPoolIdx)
-			break
-		}
+	return newConn, nil
+}
+
+func (cp *connPool) newConnRoutine(idx int) *connRoutine {
+	pktConn, _ := cp.getPacketConn()
+
+	r := &connRoutine{
+		addrPoolIdx:   idx,
+		conn:          pktConn,
+		poolRecvQueue: cp.recvQueue,
+		remoteAddr:    cp.addrPool[idx],
+		maxSend:       uint32(rand.Intn(routineMaxSend)) + routineMaxSend, // approx 32-64MB for this connRoutine
 	}
-	return r, nil
+	go r.recvLoop()
+	log.Infoln("hysteria: new conn %v, maxsend: %v", r.remoteAddr, r.maxSend)
+	cp.workPool[r] = struct{}{}
+	cp.idxPool[idx] = struct{}{}
+	return r
 }
 
 type udpPacket struct {
@@ -253,13 +272,17 @@ func (c *connRoutine) recvLoop() {
 		poolBuf.Set(hintBuf)
 		n, addr, err := c.conn.ReadFrom(poolBuf.Bytes())
 		if err != nil {
+			if nErr, ok := err.(net.Error); ok && nErr.Temporary() {
+				continue
+			}
+			c.sendCounter.Store(3 * routineMaxSend)
 			break
 		}
 		select {
 		case c.poolRecvQueue <- &udpPacket{poolBuf, n, addr}:
 		default:
 			// Drop the packet if the queue is full
-			log.Infoln("Dropped %d bytes", n)
+			log.Errorln("hysteria: connRoutine dropped %d bytes", n)
 			bytebufferpool.Put(poolBuf)
 		}
 	}
@@ -268,14 +291,10 @@ func (c *connRoutine) recvLoop() {
 func (c *connRoutine) writeTo(p []byte) (int, error) {
 	sendCount := c.sendCounter.Add(1)
 	if sendCount > c.maxSend {
-		log.Infoln("Reached max: %s", c.remoteAddr)
+		log.Infoln("hysteria: reached max %s", c.remoteAddr)
 		return 0, ErrMaxSend
 	}
 	return c.conn.WriteTo(p, c.remoteAddr)
-}
-
-func (c *connRoutine) isMaxSend() bool {
-	return c.sendCounter.Load() > c.maxSend
 }
 
 type RawConn struct {
@@ -283,7 +302,7 @@ type RawConn struct {
 }
 
 func (r *RawConn) Control(f func(fd uintptr)) error {
-	log.Infoln("SyscallConn Control")
+	log.Debugln("hysteria: SyscallConn Control")
 	for c := range r.workPool {
 		sc, _ := c.conn.(syscall.Conn)
 		raw, _ := sc.SyscallConn()
@@ -293,7 +312,7 @@ func (r *RawConn) Control(f func(fd uintptr)) error {
 }
 
 func (r *RawConn) Read(f func(fd uintptr) (done bool)) error {
-	log.Infoln("SyscallConn Read")
+	log.Debugln("hysteria: SyscallConn Read")
 	for c := range r.workPool {
 		sc, _ := c.conn.(syscall.Conn)
 		raw, _ := sc.SyscallConn()
@@ -303,7 +322,7 @@ func (r *RawConn) Read(f func(fd uintptr) (done bool)) error {
 }
 
 func (r *RawConn) Write(f func(fd uintptr) (done bool)) error {
-	log.Infoln("SyscallConn Write")
+	log.Debugln("hysteria: SyscallConn Write")
 	for c := range r.workPool {
 		sc, _ := c.conn.(syscall.Conn)
 		raw, _ := sc.SyscallConn()

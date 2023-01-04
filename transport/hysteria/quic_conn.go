@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"net"
 
+	"github.com/Dreamacro/clash/log"
 	"github.com/apernet/hysteria/core/utils"
 	"github.com/lucas-clemente/quic-go"
 	"github.com/lunixbochs/struc"
@@ -14,19 +15,19 @@ import (
 )
 
 var (
-	_       net.Conn       = &hyTcp{}
-	_       net.PacketConn = &hyUdp{}
-	holdBuf                = make([]byte, 1024)
+	_       net.Conn       = &hyTCPConn{}
+	_       net.PacketConn = &hyUDPConn{}
+	holdBuf                = make([]byte, 512)
 )
 
-type hyTcp struct {
+type hyTCPConn struct {
 	quic.Stream
 	PseudoLocalAddr  net.Addr
 	PseudoRemoteAddr net.Addr
 	Established      bool
 }
 
-func (s *hyTcp) Read(b []byte) (n int, err error) {
+func (s *hyTCPConn) Read(b []byte) (n int, err error) {
 	if !s.Established {
 		var sr serverResponse
 		err = HandleServerResp(s.Stream, &sr)
@@ -38,15 +39,15 @@ func (s *hyTcp) Read(b []byte) (n int, err error) {
 	return s.Stream.Read(b)
 }
 
-func (s *hyTcp) LocalAddr() net.Addr {
+func (s *hyTCPConn) LocalAddr() net.Addr {
 	return s.PseudoLocalAddr
 }
 
-func (s *hyTcp) RemoteAddr() net.Addr {
+func (s *hyTCPConn) RemoteAddr() net.Addr {
 	return s.PseudoRemoteAddr
 }
 
-type hyUdp struct {
+type hyUDPConn struct {
 	quic.Connection
 	quic.Stream
 	UdpSession   *udpSession
@@ -54,10 +55,11 @@ type hyUdp struct {
 	MsgCh        <-chan *udpMessage
 }
 
-func (c *hyUdp) Hold() {
+func (c *hyUDPConn) Hold() {
 	// Hold the stream until it's closed
 	for {
-		_, err := c.Stream.Read(holdBuf)
+		n, err := c.Stream.Read(holdBuf)
+		log.Debugln("hysteria: UDP stream hold %v bytes", n)
 		if err != nil {
 			break
 		}
@@ -65,7 +67,7 @@ func (c *hyUdp) Hold() {
 	_ = c.Close()
 }
 
-func (c *hyUdp) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
+func (c *hyUDPConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
 	msg := <-c.MsgCh
 	if msg == nil {
 		// Closed
@@ -81,7 +83,7 @@ func (c *hyUdp) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
 	return
 }
 
-func (c *hyUdp) WriteTo(p []byte, addr net.Addr) (n int, err error) {
+func (c *hyUDPConn) WriteTo(p []byte, addr net.Addr) (n int, err error) {
 	host, port, err := utils.SplitHostPort(addr.String())
 	if err != nil {
 		return
@@ -121,7 +123,7 @@ func (c *hyUdp) WriteTo(p []byte, addr net.Addr) (n int, err error) {
 	return
 }
 
-func (c *hyUdp) Close() error {
+func (c *hyUDPConn) Close() error {
 	c.UdpSession.CloseSession(c.UDPSessionID)
 	return c.Stream.Close()
 }
