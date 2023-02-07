@@ -9,8 +9,8 @@ import (
 
 	"github.com/Dreamacro/clash/log"
 	"github.com/apernet/hysteria/core/utils"
-	"github.com/lucas-clemente/quic-go"
 	"github.com/lunixbochs/struc"
+	"github.com/quic-go/quic-go"
 	"github.com/valyala/bytebufferpool"
 )
 
@@ -101,7 +101,7 @@ func (c *hyUDPConn) WriteTo(p []byte, addr net.Addr) (n int, err error) {
 	_ = struc.Pack(msgBuf, &msg)
 	err = c.Connection.SendMessage(msgBuf.Bytes())
 	if err != nil {
-		if errSize, ok := err.(quic.ErrMessageToLarge); ok {
+		if errSize, ok := err.(quic.ErrMessageTooLarge); ok {
 			// need to frag
 			msg.MsgID = uint16(rand.Intn(0xFFFF)) + 1 // msgID must be > 0 when fragCount > 1
 			fragMsgs := fragUDPMessage(msg, int(errSize))

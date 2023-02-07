@@ -9,8 +9,8 @@ import (
 	"github.com/apernet/hysteria/core/pktconns/obfs"
 	"github.com/apernet/hysteria/core/pktconns/udp"
 	"github.com/apernet/hysteria/core/pktconns/wechat"
-	"github.com/lucas-clemente/quic-go"
 	"github.com/lunixbochs/struc"
+	"github.com/quic-go/quic-go"
 )
 
 const sysConnBuffer = 1024 * 1024 * 4 // 4MB buffer

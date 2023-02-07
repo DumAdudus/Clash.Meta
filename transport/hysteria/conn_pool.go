@@ -112,6 +112,11 @@ func (cp *connPool) WriteTo(p []byte, addr net.Addr) (n int, err error) {
 		return 0, ErrConnClosed
 	}
 
+	dealErr := func() {
+		log.Errorln("hysteria: connPool WriteTo error: %v", err)
+		n = 0
+	}
+
 	for i := 0; i < cp.concurrent; i++ {
 		conn := cp.pickConn()
 		n, err = conn.writeTo(p)
@@ -125,9 +130,12 @@ func (cp *connPool) WriteTo(p []byte, addr net.Addr) (n int, err error) {
 			} else if err == ErrConnRotated {
 				continue
 			}
+			if err != nil {
+				dealErr()
+			}
 			return
 		}
-		log.Errorln("hysteria: concurrent WriteTo error: %v", err)
+		dealErr()
 	}
 	return
 }
@@ -266,6 +274,10 @@ func (c *connRoutine) close() error {
 	return c.conn.Close()
 }
 
+func (c *connRoutine) setMaxSend() {
+	c.sendCounter.Store(3 * routineMaxSend)
+}
+
 func (c *connRoutine) recvLoop() {
 	for {
 		poolBuf := bytebufferpool.Get()
@@ -275,7 +287,7 @@ func (c *connRoutine) recvLoop() {
 			if nErr, ok := err.(net.Error); ok && nErr.Temporary() {
 				continue
 			}
-			c.sendCounter.Store(3 * routineMaxSend)
+			c.setMaxSend()
 			break
 		}
 		select {

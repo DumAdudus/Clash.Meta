@@ -21,15 +21,15 @@ import (
 
 	"github.com/apernet/hysteria/core/pktconns/obfs"
 	"github.com/apernet/hysteria/core/pmtud"
-	"github.com/lucas-clemente/quic-go"
+	"github.com/quic-go/quic-go"
 )
 
 const (
 	DefaultStreamReceiveWindow     = 16777216                           // 16 MB/s
 	DefaultConnectionReceiveWindow = DefaultStreamReceiveWindow * 5 / 2 // 40 MB/s
 	DefaultMaxIncomingStreams      = 1024
-	DefaultClientMaxIdleTimeout    = 60 * time.Second
-	DefaultClientKeepAlivePeriod   = 8 * time.Second
+	DefaultClientMaxIdleTimeout    = 10 * time.Second
+	DefaultClientKeepAlivePeriod   = 5 * time.Second
 
 	DefaultALPN     = "hysteria"
 	DefaultProtocol = "udp"

@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/lucas-clemente/quic-go"
+	"github.com/quic-go/quic-go"
 
 	"github.com/Dreamacro/clash/component/dialer"
 	tlsC "github.com/Dreamacro/clash/component/tls"

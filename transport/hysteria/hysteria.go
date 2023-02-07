@@ -17,8 +17,8 @@ import (
 	"github.com/apernet/hysteria/core/pktconns/obfs"
 	"github.com/apernet/hysteria/core/pmtud"
 	"github.com/apernet/hysteria/core/utils"
-	"github.com/lucas-clemente/quic-go"
 	"github.com/lunixbochs/struc"
+	"github.com/quic-go/quic-go"
 )
 
 var serverConnInterval = 5 * time.Second

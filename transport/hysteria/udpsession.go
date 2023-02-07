@@ -5,8 +5,8 @@ import (
 	"sync"
 
 	"github.com/Dreamacro/clash/log"
-	"github.com/lucas-clemente/quic-go"
 	"github.com/lunixbochs/struc"
+	"github.com/quic-go/quic-go"
 )
 
 const chanBuffer = 8

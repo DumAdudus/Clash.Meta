@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/lucas-clemente/quic-go/congestion"
-	"github.com/lucas-clemente/quic-go/logging"
+	"github.com/quic-go/quic-go/congestion"
+	"github.com/quic-go/quic-go/logging"
 )
 
 const (

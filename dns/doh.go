@@ -13,9 +13,9 @@ import (
 	"github.com/Dreamacro/clash/component/dialer"
 	"github.com/Dreamacro/clash/component/resolver"
 	tlsC "github.com/Dreamacro/clash/component/tls"
-	"github.com/lucas-clemente/quic-go"
-	"github.com/lucas-clemente/quic-go/http3"
 	D "github.com/miekg/dns"
+	"github.com/quic-go/quic-go"
+	"github.com/quic-go/quic-go/http3"
 )
 
 const (
