@@ -94,12 +94,12 @@ func getUrl(url string) (resp *http.Response, err error) {
 	httpClient := &http.Client{
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				if addr == "ghproxy.com:443" {
-					addr = "146.56.146.190:443" // kr1.ops.ci
+				if strings.HasSuffix(addr, "ghproxy.com:443") {
+					addr = "146.56.148.221:443" // kr1.ops.ci
 				}
 				return (&net.Dialer{
-					Timeout:   30 * time.Second,
-					KeepAlive: 30 * time.Second,
+					Timeout:   15 * time.Second,
+					KeepAlive: 20 * time.Second,
 				}).DialContext(ctx, network, addr)
 			},
 			MaxIdleConns:        100,

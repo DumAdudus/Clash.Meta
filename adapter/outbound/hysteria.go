@@ -28,8 +28,8 @@ const (
 	DefaultStreamReceiveWindow     = 16777216                           // 16 MB/s
 	DefaultConnectionReceiveWindow = DefaultStreamReceiveWindow * 5 / 2 // 40 MB/s
 	DefaultMaxIncomingStreams      = 1024
-	DefaultClientMaxIdleTimeout    = 10 * time.Second
-	DefaultClientKeepAlivePeriod   = 5 * time.Second
+	DefaultClientMaxIdleTimeout    = 60 * time.Second
+	DefaultClientKeepAlivePeriod   = 10 * time.Second
 
 	DefaultALPN     = "hysteria"
 	DefaultProtocol = "udp"
